@@ -105,6 +105,25 @@ export class MessageHandlers {
         result.datos.descripcion = "Pendiente de confirmación";
       }
 
+      // Try to infer subcategory if missing but macro category exists
+      if (
+        (!result.datos.subcategoria || result.datos.subcategoria.trim() === "") &&
+        result.datos.macro_categoria &&
+        result.datos.macro_categoria.trim() !== ""
+      ) {
+        const inferredSubcategory = this.tryInferSubcategory(
+          text,
+          result.datos.macro_categoria,
+          config.categoriasMap
+        );
+        if (inferredSubcategory) {
+          Logger.log(
+            `Inferred subcategory "${inferredSubcategory}" for macro "${result.datos.macro_categoria}" from text: "${text}"`
+          );
+          result.datos.subcategoria = inferredSubcategory;
+        }
+      }
+
       // Default values for missing fields
       if (!result.datos.moneda) result.datos.moneda = "ARS";
       if (!result.datos.split) result.datos.split = "Solo mío";
@@ -234,6 +253,87 @@ export class MessageHandlers {
       result.usa_contexto = contextoPrevio !== null;
     }
 
+    // Apply same fallback logic for GASTO as in handleTextMessage
+    if (result.tipo === "GASTO") {
+      if (
+        (!result.datos.subcategoria || result.datos.subcategoria.trim() === "") &&
+        result.datos.macro_categoria &&
+        result.datos.macro_categoria.trim() !== ""
+      ) {
+        const inferredSubcategory = this.tryInferSubcategory(
+          textoTranscrito,
+          result.datos.macro_categoria,
+          config.categoriasMap
+        );
+        if (inferredSubcategory) {
+          Logger.log(
+            `Inferred subcategory "${inferredSubcategory}" for macro "${result.datos.macro_categoria}" from transcribed text: "${textoTranscrito}"`
+          );
+          result.datos.subcategoria = inferredSubcategory;
+        }
+      }
+    }
+
     return result;
+  }
+
+  /**
+   * Tries to infer a subcategory from the user text when subcategory is missing
+   * but macro category is present. Uses fuzzy matching to find the best match.
+   */
+  private tryInferSubcategory(
+    text: string,
+    macroCategoria: string,
+    categoriasMap: import("../types").CategoryMap
+  ): string | null {
+    const subcategorias = categoriasMap[macroCategoria];
+    if (!subcategorias || subcategorias.length === 0) {
+      return null;
+    }
+
+    const textLower = text.toLowerCase();
+
+    // Helper to extract text without emoji
+    const extractTextWithoutEmoji = (text: string): string => {
+      if (!text) return "";
+      return text
+        .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, "")
+        .trim();
+    };
+
+    // Try exact match first (case insensitive, without emoji)
+    for (const subcat of subcategorias) {
+      const subcatClean = extractTextWithoutEmoji(subcat).toLowerCase();
+      if (textLower.includes(subcatClean) || subcatClean.includes(textLower)) {
+        return extractTextWithoutEmoji(subcat);
+      }
+    }
+
+    // Try partial match - check if any word in text matches any word in subcategory
+    const textWords = textLower.split(/\s+/);
+    for (const subcat of subcategorias) {
+      const subcatClean = extractTextWithoutEmoji(subcat).toLowerCase();
+      const subcatWords = subcatClean.split(/[\s/]+/);
+
+      for (const textWord of textWords) {
+        if (textWord.length < 3) continue; // Skip very short words
+        for (const subcatWord of subcatWords) {
+          if (subcatWord.length < 3) continue;
+          if (textWord.includes(subcatWord) || subcatWord.includes(textWord)) {
+            return extractTextWithoutEmoji(subcat);
+          }
+        }
+      }
+    }
+
+    // If no match found, return the first subcategory as fallback
+    if (subcategorias.length > 0) {
+      Logger.log(
+        `No match found for text "${text}" in macro "${macroCategoria}", using first subcategory as fallback`
+      );
+      return extractTextWithoutEmoji(subcategorias[0]);
+    }
+
+    return null;
   }
 }

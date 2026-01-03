@@ -105,6 +105,14 @@ REGLAS CRÍTICAS DE FORMATO:
     for (const macro in categoriasMap) {
       descripcionCategorias += `${macro}: ${categoriasMap[macro].join(", ")}\n`;
     }
+    descripcionCategorias += "\n⚠️ IMPORTANTE sobre subcategorías:\n";
+    descripcionCategorias +=
+      "- Las subcategorías pueden tener emojis (ej: ✂️ Peluquería/Barbería)\n";
+    descripcionCategorias += '- Devolvé SOLO el texto SIN emoji (ej: "Peluquería/Barbería")\n';
+    descripcionCategorias +=
+      '- Hacé coincidencias parciales: si el usuario dice "peluquería", matcheá con "Peluquería/Barbería"\n';
+    descripcionCategorias +=
+      '- Si el usuario menciona algo relacionado (ej: "corte de pelo", "barbería"), elegí la subcategoría más apropiada\n';
 
     // Build context text if exists
     let contextoTexto = "";
@@ -183,7 +191,7 @@ Formato JSON requerido (responde SOLO esto, sin texto adicional):
     "fecha": "DD/MM/YYYY" o "" si no se puede inferir,
     "descripcion": "..." o "" si no está claro,
     "macro_categoria": "sin emoji, ej: ALIMENTACIÓN" o "" si no se puede determinar,
-    "subcategoria": "debe corresponder a la macro" o "" si no se puede determinar,
+    "subcategoria": "texto SIN emoji que corresponda a la macro (ej: si el usuario dice 'peluquería' o 'barbería', devolvé 'Peluquería/Barbería'). Hacé coincidencias parciales inteligentes. NUNCA devolvás string vacío si hay una macro_categoria seleccionada.",
     "cuenta": "..." o "" si no está claro,
     "monto": número o 0 si no está claro,
     "cuotas": 1 si no aplica,
@@ -197,6 +205,7 @@ Formato JSON requerido (responde SOLO esto, sin texto adicional):
 }
 
 Si es GASTO: Completa todos los campos posibles. Si faltan datos críticos (monto, descripcion), usa valores por defecto razonables.
+⚠️ CRÍTICO para GASTO: Si seleccionaste una macro_categoria, SIEMPRE debés seleccionar también una subcategoria correspondiente. Buscá en la lista de subcategorías de esa macro y hacé coincidencias parciales si es necesario (ej: 'peluquería' → 'Peluquería/Barbería', 'super' → 'Supermercado').
 Si es INGRESO: usa {fecha, fuente, cuenta, monto, moneda, cotizacion}.
 Si es TRANSFERENCIA: usa {fecha, origen, destino, monto_salida, monto_entrada}.
 
