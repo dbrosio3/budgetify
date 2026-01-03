@@ -6,6 +6,8 @@
   "scripts": {
     "start": "bun run src/server.ts",
     "dev": "bun --watch src/server.ts",
+    "dev:staging": "bun --env-file=.env.staging --watch src/server.ts",
+    "dev:production": "bun --env-file=.env.production --watch src/server.ts",
     "test": "bun test",
     "type-check": "tsc --noEmit",
     "lint": "eslint src --ext .ts",

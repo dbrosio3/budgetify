@@ -1,6 +1,7 @@
 node_modules/
 dist/
-.env
+.env*
+!.env.example
 *.log
 .DS_Store
 *.service-account-key.json
@@ -8,4 +9,3 @@ coverage/
 .vscode/
 .idea/
 bun.lockb
-
