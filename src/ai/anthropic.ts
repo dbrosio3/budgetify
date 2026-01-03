@@ -122,7 +122,7 @@ export class AnthropicClient {
 
       const text = responseData.content?.[0]?.text;
       if (!text) {
-        Logger.error("Anthropic Vision response without text", responseData);
+        Logger.log("Anthropic Vision response without text", responseData);
         throw new GeminiAPIError("Anthropic Vision Error: No text in response");
       }
 

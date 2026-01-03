@@ -1,5 +1,4 @@
 import { TelegramMessage, TransactionResult } from "../types";
-import { TelegramClient } from "./telegram";
 import { AIClient } from "../ai/client";
 import { PromptBuilder } from "../ai/prompts";
 import { SheetsClient } from "../sheets/client";
@@ -11,7 +10,6 @@ import { Logger } from "../utils/logger";
 
 export class MessageHandlers {
   constructor(
-    private telegramClient: TelegramClient,
     private aiClient: AIClient,
     private sheetsClient: SheetsClient,
     private imageProcessor: ImageProcessor,

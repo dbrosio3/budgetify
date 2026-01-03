@@ -4,7 +4,7 @@ export class Logger {
     console.log(`[${timestamp}] ${message}`, ...args);
   }
 
-  static error(message: string, error?: Error | null): void {
+  static error(message: string, error?: unknown): void {
     const timestamp = new Date().toISOString();
     console.error(`[${timestamp}] ERROR: ${message}`);
     if (error instanceof Error) {

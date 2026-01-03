@@ -24,13 +24,7 @@ const imageProcessor = new ImageProcessor(telegramClient);
 const audioProcessor = new AudioProcessor(telegramClient);
 
 // Initialize handlers
-const messageHandlers = new MessageHandlers(
-  telegramClient,
-  aiClient,
-  sheetsClient,
-  imageProcessor,
-  audioProcessor
-);
+const messageHandlers = new MessageHandlers(aiClient, sheetsClient, imageProcessor, audioProcessor);
 const callbackHandlers = new CallbackHandlers(telegramClient, sheetsClient);
 
 // Helper to check if result is modifying pending operation

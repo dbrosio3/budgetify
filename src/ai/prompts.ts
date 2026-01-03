@@ -4,8 +4,8 @@ export class PromptBuilder {
   static buildVisionPrompt(
     caption: string,
     cuentas: string[],
-    macroCategorias: string[],
-    subcategorias: string[],
+    _macroCategorias: string[],
+    _subcategorias: string[],
     categoriasMap: CategoryMap,
     misDatos: PersonalData
   ): string {

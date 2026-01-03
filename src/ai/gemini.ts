@@ -108,18 +108,18 @@ export class GeminiClient implements AIClient {
       }
 
       if (!json.candidates || json.candidates.length === 0) {
-        Logger.error("Gemini Vision response without candidates", json);
+        Logger.log("Gemini Vision response without candidates", json);
         throw new GeminiAPIError("Gemini Vision Error: No candidates in response");
       }
 
       if (!json.candidates[0]?.content?.parts || json.candidates[0].content.parts.length === 0) {
-        Logger.error("Gemini Vision unexpected structure", json.candidates[0]);
+        Logger.log("Gemini Vision unexpected structure", json.candidates[0]);
         throw new GeminiAPIError("Gemini Vision Error: Unexpected response structure");
       }
 
       const text = json.candidates[0].content.parts[0]?.text;
       if (!text) {
-        Logger.error("Gemini Vision response without text", json.candidates[0]);
+        Logger.log("Gemini Vision response without text", json.candidates[0]);
         throw new GeminiAPIError("Gemini Vision Error: No text in response");
       }
 
@@ -200,18 +200,18 @@ IMPORTANTE:
       }
 
       if (!json.candidates || json.candidates.length === 0) {
-        Logger.error("Gemini Audio response without candidates", json);
+        Logger.log("Gemini Audio response without candidates", json);
         throw new GeminiAPIError("Gemini Audio Error: No candidates in response");
       }
 
       if (!json.candidates[0]?.content?.parts || json.candidates[0].content.parts.length === 0) {
-        Logger.error("Gemini Audio unexpected structure", json.candidates[0]);
+        Logger.log("Gemini Audio unexpected structure", json.candidates[0]);
         throw new GeminiAPIError("Gemini Audio Error: Unexpected response structure");
       }
 
       const text = json.candidates[0].content.parts[0]?.text;
       if (!text) {
-        Logger.error("Gemini Audio response without text", json.candidates[0]);
+        Logger.log("Gemini Audio response without text", json.candidates[0]);
         throw new GeminiAPIError("Gemini Audio Error: No text in response");
       }
 
