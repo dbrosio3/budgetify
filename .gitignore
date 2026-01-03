@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+*.log
+.DS_Store
+*.service-account-key.json
+coverage/
+.vscode/
+.idea/
+bun.lockb
+

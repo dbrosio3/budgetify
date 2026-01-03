@@ -1,0 +1,9 @@
+# Bun configuration
+[install]
+# Use production dependencies by default
+production = false
+
+[test]
+# Test configuration
+timeout = 30000
+

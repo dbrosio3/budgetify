@@ -1,0 +1,11 @@
+node_modules
+dist
+legacy
+*.lock
+bun.lock
+.env
+.env.local
+*.log
+coverage
+.DS_Store
+

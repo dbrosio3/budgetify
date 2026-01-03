@@ -1,0 +1,53 @@
+// Bun has built-in support for .env files, no need for dotenv
+
+export const config = {
+  telegram: {
+    token: process.env.TELEGRAM_TOKEN || "",
+    chatId: parseInt(process.env.TELEGRAM_CHAT_ID || "0", 10),
+    webhookUrl: process.env.WEBHOOK_URL || "",
+  },
+  ai: {
+    provider: (process.env.AI_PROVIDER || "gemini").toLowerCase(), // "gemini" or "anthropic"
+    gemini: {
+      apiKey: process.env.GEMINI_API_KEY || "",
+      modelName: process.env.GEMINI_MODEL_NAME || "gemini-2.5-flash",
+    },
+    anthropic: {
+      apiKey: process.env.ANTHROPIC_API_KEY || "",
+      modelName: process.env.ANTHROPIC_MODEL_NAME || "claude-haiku-4-5-20251001",
+    },
+  },
+  sheets: {
+    spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID || "",
+    credentialsPath: process.env.GOOGLE_APPLICATION_CREDENTIALS || "",
+  },
+  server: {
+    port: parseInt(process.env.PORT || "3000", 10),
+    nodeEnv: process.env.NODE_ENV || "production",
+  },
+  redis: {
+    url: process.env.REDIS_URL || "",
+  },
+};
+
+// Validate required configuration
+const requiredVars = ["TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID", "GOOGLE_SHEETS_SPREADSHEET_ID"];
+
+// Validate AI provider specific keys
+if (config.ai.provider === "gemini") {
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error("Missing required environment variable: GEMINI_API_KEY");
+  }
+} else if (config.ai.provider === "anthropic") {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error("Missing required environment variable: ANTHROPIC_API_KEY");
+  }
+} else {
+  throw new Error(`Invalid AI_PROVIDER: ${config.ai.provider}. Must be "gemini" or "anthropic"`);
+}
+
+for (const varName of requiredVars) {
+  if (!process.env[varName]) {
+    throw new Error(`Missing required environment variable: ${varName}`);
+  }
+}
