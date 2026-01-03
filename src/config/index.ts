@@ -7,7 +7,7 @@ export const config = {
     webhookUrl: process.env.WEBHOOK_URL || "",
   },
   ai: {
-    provider: (process.env.AI_PROVIDER || "gemini").toLowerCase(), // "gemini" or "anthropic"
+    defaultProvider: (process.env.DEFAULT_AI_PROVIDER || process.env.AI_PROVIDER || "gemini").toLowerCase(), // "gemini" or "anthropic"
     gemini: {
       apiKey: process.env.GEMINI_API_KEY || "",
       modelName: process.env.GEMINI_MODEL_NAME || "gemini-2.5-flash",
@@ -33,17 +33,21 @@ export const config = {
 // Validate required configuration
 const requiredVars = ["TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID", "GOOGLE_SHEETS_SPREADSHEET_ID"];
 
-// Validate AI provider specific keys
-if (config.ai.provider === "gemini") {
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error("Missing required environment variable: GEMINI_API_KEY");
-  }
-} else if (config.ai.provider === "anthropic") {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error("Missing required environment variable: ANTHROPIC_API_KEY");
-  }
-} else {
-  throw new Error(`Invalid AI_PROVIDER: ${config.ai.provider}. Must be "gemini" or "anthropic"`);
+// Validate AI provider specific keys (check both providers since users can switch)
+if (!process.env.GEMINI_API_KEY && !process.env.ANTHROPIC_API_KEY) {
+  throw new Error("Missing required environment variable: At least one of GEMINI_API_KEY or ANTHROPIC_API_KEY must be set");
+}
+
+// Validate default provider
+if (config.ai.defaultProvider !== "gemini" && config.ai.defaultProvider !== "anthropic") {
+  throw new Error(`Invalid DEFAULT_AI_PROVIDER: ${config.ai.defaultProvider}. Must be "gemini" or "anthropic"`);
+}
+
+// Validate default provider has API key
+if (config.ai.defaultProvider === "gemini" && !process.env.GEMINI_API_KEY) {
+  throw new Error("Missing required environment variable: GEMINI_API_KEY (required for default provider)");
+} else if (config.ai.defaultProvider === "anthropic" && !process.env.ANTHROPIC_API_KEY) {
+  throw new Error("Missing required environment variable: ANTHROPIC_API_KEY (required for default provider)");
 }
 
 for (const varName of requiredVars) {

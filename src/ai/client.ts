@@ -10,14 +10,39 @@ export interface AIClient {
   transcribeAudio(audioData: AudioData): Promise<string>;
 }
 
-// Factory function to create the appropriate AI client
-export function createAIClient(): AIClient {
-  const provider = config.ai.provider;
+export type AIProvider = "gemini" | "anthropic";
 
-  if (provider === "anthropic") {
+// Factory function to create the appropriate AI client
+export function createAIClient(provider?: AIProvider): AIClient {
+  const selectedProvider = provider || (config.ai.defaultProvider as AIProvider);
+
+  if (selectedProvider === "anthropic") {
     return new AnthropicClient();
   } else {
     // Default to Gemini
     return new GeminiClient();
+  }
+}
+
+// AI Client Manager - manages AI clients per user/provider
+export class AIClientManager {
+  private clientCache: Map<AIProvider, AIClient> = new Map();
+
+  /**
+   * Get an AI client for the specified provider
+   * Uses caching to avoid creating multiple instances
+   */
+  getClient(provider: AIProvider): AIClient {
+    if (!this.clientCache.has(provider)) {
+      this.clientCache.set(provider, createAIClient(provider));
+    }
+    return this.clientCache.get(provider)!;
+  }
+
+  /**
+   * Clear the client cache (useful for testing or reinitialization)
+   */
+  clearCache(): void {
+    this.clientCache.clear();
   }
 }

@@ -1,5 +1,5 @@
 import { TelegramMessage, TransactionResult } from "../types";
-import { AIClient } from "../ai/client";
+import { AIClientManager } from "../ai/client";
 import { PromptBuilder } from "../ai/prompts";
 import { SheetsClient } from "../sheets/client";
 import { ImageProcessor } from "../services/image-processor";
@@ -7,10 +7,12 @@ import { AudioProcessor } from "../services/audio-processor";
 import { contextManager } from "../services/context-manager";
 import { pendingOperations } from "../services/pending-operations";
 import { Logger } from "../utils/logger";
+import { UserPreferencesService } from "../services/user-preferences";
 
 export class MessageHandlers {
   constructor(
-    private aiClient: AIClient,
+    private aiClientManager: AIClientManager,
+    private userPreferences: UserPreferencesService,
     private sheetsClient: SheetsClient,
     private imageProcessor: ImageProcessor,
     private audioProcessor: AudioProcessor
@@ -38,8 +40,12 @@ export class MessageHandlers {
       operacionPendiente
     );
 
+    // Get user's preferred AI provider and get the client
+    const userProvider = await this.userPreferences.getAIProvider(chatId);
+    const aiClient = this.aiClientManager.getClient(userProvider);
+
     // Call AI
-    const response = await this.aiClient.generateContent(prompt);
+    const response = await aiClient.generateContent(prompt);
 
     // Clean response: remove markdown code blocks and trim
     let cleanedResponse = response.replace(/```json|```/g, "").trim();
@@ -153,11 +159,15 @@ export class MessageHandlers {
       misDatos
     );
 
-    Logger.log("Calling Gemini Vision...");
+    // Get user's preferred AI provider and get the client
+    const userProvider = await this.userPreferences.getAIProvider(message.chat.id);
+    const aiClient = this.aiClientManager.getClient(userProvider);
+
+    Logger.log(`Calling ${userProvider === "gemini" ? "Gemini" : "Anthropic"} Vision...`);
     let response: string;
     try {
-      response = await this.aiClient.generateContentWithVision(prompt, imageData);
-      Logger.log(`Response received from Gemini (${response.length} characters)`);
+      response = await aiClient.generateContentWithVision(prompt, imageData);
+      Logger.log(`Response received from ${userProvider === "gemini" ? "Gemini" : "Anthropic"} (${response.length} characters)`);
     } catch (visionError) {
       Logger.error("Error in Gemini Vision", visionError);
       throw new Error(
@@ -210,8 +220,12 @@ export class MessageHandlers {
     // Download audio
     const audioData = await this.audioProcessor.downloadAudio(audioFile.file_id);
 
-    // Transcribe with Gemini
-    const textoTranscrito = await this.aiClient.transcribeAudio(audioData);
+    // Get user's preferred AI provider and get the client
+    const userProvider = await this.userPreferences.getAIProvider(chatId);
+    const aiClient = this.aiClientManager.getClient(userProvider);
+
+    // Transcribe with AI
+    const textoTranscrito = await aiClient.transcribeAudio(audioData);
     Logger.log(`Transcribed text: ${textoTranscrito}`);
 
     if (!textoTranscrito || textoTranscrito.trim() === "") {
@@ -233,7 +247,8 @@ export class MessageHandlers {
       operacionPendiente
     );
 
-    const response = await this.aiClient.generateContent(prompt);
+    // Reuse the same AI client that was used for transcription
+    const response = await aiClient.generateContent(prompt);
     const cleanedResponse = response.replace(/```json|```/g, "").trim();
 
     let result: TransactionResult;

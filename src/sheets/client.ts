@@ -563,7 +563,7 @@ export class SheetsClient {
     }
   }
 
-  private async sheetExists(sheetName: string): Promise<boolean> {
+  async sheetExists(sheetName: string): Promise<boolean> {
     if (!this.sheets) {
       return false;
     }
@@ -576,6 +576,130 @@ export class SheetsClient {
     } catch (error) {
       Logger.error("Error checking if sheet exists", error);
       return false;
+    }
+  }
+
+  /**
+   * Get the AI provider preference for a user from USER_PREFERENCES sheet
+   */
+  async getUserAIProvider(chatId: number): Promise<string | null> {
+    if (!this.sheets) {
+      return null;
+    }
+    const sheetName = "USER_PREFERENCES";
+    try {
+      const exists = await this.sheetExists(sheetName);
+      if (!exists) {
+        return null;
+      }
+
+      const range = `${sheetName}!A:B`;
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range,
+      });
+
+      const values = (response.data.values as unknown[][]) || [];
+      
+      // Skip header row (if exists)
+      for (let i = values.length > 0 && values[0]?.[0] === "chatId" ? 1 : 0; i < values.length; i++) {
+        const row = values[i];
+        if (row && row[0] && String(row[0]) === String(chatId)) {
+          return String(row[1] || "").toLowerCase().trim();
+        }
+      }
+
+      return null;
+    } catch (error) {
+      Logger.error("Error reading AI provider from Sheets", error);
+      return null;
+    }
+  }
+
+  /**
+   * Set the AI provider preference for a user in USER_PREFERENCES sheet
+   */
+  async setUserAIProvider(chatId: number, provider: string): Promise<void> {
+    if (!this.sheets) {
+      throw new SheetsAPIError("Sheets client not initialized");
+    }
+    const sheetName = "USER_PREFERENCES";
+    try {
+      const exists = await this.sheetExists(sheetName);
+      if (!exists) {
+        // Create the sheet with headers
+        await this.sheets.spreadsheets.batchUpdate({
+          spreadsheetId: this.spreadsheetId,
+          requestBody: {
+            requests: [
+              {
+                addSheet: {
+                  properties: {
+                    title: sheetName,
+                  },
+                },
+              },
+            ],
+          },
+        });
+
+        // Add headers
+        await this.sheets.spreadsheets.values.update({
+          spreadsheetId: this.spreadsheetId,
+          range: `${sheetName}!A1:B1`,
+          valueInputOption: "USER_ENTERED",
+          requestBody: {
+            values: [["chatId", "ai_provider"]],
+          },
+        });
+      }
+
+      // Check if user preference already exists
+      const range = `${sheetName}!A:B`;
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range,
+      });
+
+      const values = (response.data.values as unknown[][]) || [];
+      let userRowIndex = -1;
+
+      // Skip header row
+      for (let i = values.length > 0 && values[0]?.[0] === "chatId" ? 1 : 0; i < values.length; i++) {
+        const row = values[i];
+        if (row && row[0] && String(row[0]) === String(chatId)) {
+          userRowIndex = i + 1; // +1 because Sheets is 1-indexed
+          break;
+        }
+      }
+
+      if (userRowIndex > 0) {
+        // Update existing row
+        await this.sheets.spreadsheets.values.update({
+          spreadsheetId: this.spreadsheetId,
+          range: `${sheetName}!B${userRowIndex}`,
+          valueInputOption: "USER_ENTERED",
+          requestBody: {
+            values: [[provider]],
+          },
+        });
+      } else {
+        // Add new row
+        const lastRow = values.length + 1;
+        await this.sheets.spreadsheets.values.update({
+          spreadsheetId: this.spreadsheetId,
+          range: `${sheetName}!A${lastRow}:B${lastRow}`,
+          valueInputOption: "USER_ENTERED",
+          requestBody: {
+            values: [[String(chatId), provider]],
+          },
+        });
+      }
+    } catch (error) {
+      Logger.error("Error writing AI provider to Sheets", error);
+      throw new SheetsAPIError(
+        `Failed to write AI provider: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 }

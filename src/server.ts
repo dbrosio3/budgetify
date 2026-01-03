@@ -5,26 +5,28 @@ import { TelegramUpdate, TransactionResult } from "./types";
 import { TelegramClient } from "./bot/telegram";
 import { MessageHandlers } from "./bot/handlers";
 import { CallbackHandlers } from "./bot/callbacks";
-import { createAIClient } from "./ai/client";
+import { AIClientManager } from "./ai/client";
 import { SheetsClient } from "./sheets/client";
 import { ImageProcessor } from "./services/image-processor";
 import { AudioProcessor } from "./services/audio-processor";
 import { pendingOperations } from "./services/pending-operations";
 import { contextManager } from "./services/context-manager";
 import { MessageBuilder } from "./bot/message-builder";
+import { initializeUserPreferences } from "./services/user-preferences";
 
 const app = express();
 app.use(express.json());
 
 // Initialize clients
 const telegramClient = new TelegramClient();
-const aiClient = createAIClient();
 const sheetsClient = new SheetsClient();
+const aiClientManager = new AIClientManager();
+const userPreferences = initializeUserPreferences(sheetsClient);
 const imageProcessor = new ImageProcessor(telegramClient);
 const audioProcessor = new AudioProcessor(telegramClient);
 
 // Initialize handlers
-const messageHandlers = new MessageHandlers(aiClient, sheetsClient, imageProcessor, audioProcessor);
+const messageHandlers = new MessageHandlers(aiClientManager, userPreferences, sheetsClient, imageProcessor, audioProcessor);
 const callbackHandlers = new CallbackHandlers(telegramClient, sheetsClient);
 
 // Helper to check if result is modifying pending operation
@@ -120,6 +122,45 @@ app.post("/webhook", async (req: Request, res: Response) => {
         res.status(200).send("OK");
         return;
       }
+
+      if (message.text.startsWith("/model")) {
+        const parts = message.text.trim().split(/\s+/);
+        if (parts.length === 1) {
+          // Show current model
+          const currentProvider = await userPreferences.getAIProvider(chatId);
+          const providerName = currentProvider === "gemini" ? "Gemini" : "Anthropic Claude";
+          await telegramClient.sendMessage(
+            chatId,
+            `🤖 *Modelo actual:* ${providerName}\n\nUsá \`/model gemini\` o \`/model anthropic\` para cambiar.`
+          );
+        } else {
+          // Set model
+          const requestedProvider = parts[1].toLowerCase().trim();
+          if (requestedProvider !== "gemini" && requestedProvider !== "anthropic") {
+            await telegramClient.sendMessage(
+              chatId,
+              "❌ Modelo inválido. Usá \`gemini\` o \`anthropic\`.\n\nEjemplo: \`/model gemini\`"
+            );
+          } else {
+            try {
+              await userPreferences.setAIProvider(chatId, requestedProvider as "gemini" | "anthropic");
+              const providerName = requestedProvider === "gemini" ? "Gemini" : "Anthropic Claude";
+              await telegramClient.sendMessage(
+                chatId,
+                `✅ *Modelo cambiado a:* ${providerName}\n\nEste cambio se aplicará en los próximos mensajes.`
+              );
+            } catch (error) {
+              Logger.error("Error setting AI provider", error);
+              await telegramClient.sendMessage(
+                chatId,
+                `❌ Error al cambiar el modelo: ${error instanceof Error ? error.message : String(error)}`
+              );
+            }
+          }
+        }
+        res.status(200).send("OK");
+        return;
+      }
     }
 
     let result: TransactionResult | undefined;
@@ -175,6 +216,8 @@ app.post("/webhook", async (req: Request, res: Response) => {
           loadingMessageId!,
           "🎤 Paso 3/4: Transcribiendo con IA (esto puede tardar)..."
         );
+        const userProvider = await userPreferences.getAIProvider(chatId);
+        const aiClient = aiClientManager.getClient(userProvider);
         const textoTranscrito = await aiClient.transcribeAudio(audioData);
 
         if (!textoTranscrito || textoTranscrito.trim() === "") {
