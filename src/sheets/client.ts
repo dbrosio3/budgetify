@@ -11,8 +11,7 @@ import {
 } from "../types";
 
 export class SheetsClient {
-  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
-  private auth: ReturnType<typeof google.auth.GoogleAuth> | null = null;
+  private auth: InstanceType<typeof google.auth.GoogleAuth> | null = null;
   private sheets: sheets_v4.Sheets | null = null;
   private spreadsheetId: string;
 
@@ -48,8 +47,8 @@ export class SheetsClient {
       if (!this.auth) {
         throw new Error("Auth not initialized");
       }
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      this.sheets = google.sheets({ version: "v4", auth: this.auth });
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
+      this.sheets = google.sheets({ version: "v4", auth: this.auth as any });
       Logger.log("Google Sheets client initialized");
     } catch (error) {
       Logger.error("Error initializing Google Sheets client", error);
@@ -290,7 +289,10 @@ export class SheetsClient {
       const newRow = lastRow + 1;
 
       // Find subcategory with emoji
-      const subcategoriaConEmoji = await this.findSubcategoryWithEmoji(data.subcategoria, "CONFIG");
+      const subcategoriaConEmoji = await this.findSubcategoryWithEmoji(
+        data.subcategoria || "",
+        "CONFIG"
+      );
 
       // Parse date
       let fecha: Date;
@@ -314,17 +316,17 @@ export class SheetsClient {
         spreadsheetId: this.spreadsheetId,
         range: `${sheetName}!A${newRow}:H${newRow}`,
         valueInputOption: "USER_ENTERED",
-        resource: {
+        requestBody: {
           values: [
             [
               fecha,
-              data.descripcion.trim(),
-              data.macro_categoria.trim(),
+              data.descripcion?.trim() || "",
+              data.macro_categoria?.trim() || "",
               subcategoriaConEmoji,
-              data.cuenta.trim(),
-              parseFloat(data.monto),
-              parseInt(data.cuotas || 1, 10),
-              parseInt(data.n_cuota || 1, 10),
+              data.cuenta?.trim() || "",
+              parseFloat(String(data.monto || 0)),
+              String(parseInt(String(data.cuotas || 1), 10)),
+              String(parseInt(String(data.n_cuota || 1), 10)),
             ],
           ],
         },
@@ -335,7 +337,7 @@ export class SheetsClient {
         spreadsheetId: this.spreadsheetId,
         range: `${sheetName}!J${newRow}:K${newRow}`,
         valueInputOption: "USER_ENTERED",
-        resource: {
+        requestBody: {
           values: [[data.moneda || "ARS", data.split || "Solo mío"]],
         },
       });
@@ -345,7 +347,7 @@ export class SheetsClient {
         spreadsheetId: this.spreadsheetId,
         range: `${sheetName}!M${newRow}:N${newRow}`,
         valueInputOption: "USER_ENTERED",
-        resource: {
+        requestBody: {
           values: [[(data.link || "").trim(), (data.notas || "").trim()]],
         },
       });
@@ -358,7 +360,7 @@ export class SheetsClient {
           spreadsheetId: this.spreadsheetId,
           range: `${sheetName}!I${newRow}`,
           valueInputOption: "USER_ENTERED",
-          resource: {
+          requestBody: {
             values: [[`=IFERROR(IF(G${newRow} > 0, F${newRow} / G${newRow}, F${newRow}), "")`]],
           },
         });
@@ -376,7 +378,7 @@ export class SheetsClient {
           spreadsheetId: this.spreadsheetId,
           range: `${sheetName}!L${newRow}`,
           valueInputOption: "USER_ENTERED",
-          resource: {
+          requestBody: {
             values: [[`=IFERROR(IF(EXACT(K${newRow},"Compartido 50/50"), I${newRow}/2, ""), "")`]],
           },
         });
@@ -423,36 +425,46 @@ export class SheetsClient {
         fecha = new Date();
       }
 
+      // Note: Don't write to column G (protected), only write A-F
       const rowData = [
         fecha,
         (data.fuente || data.descripcion || "").trim(),
-        data.cuenta.trim(),
-        parseFloat(data.monto),
+        (data.cuenta || "").trim(),
+        String(parseFloat(String(data.monto || 0))),
         data.moneda || "ARS",
-        parseFloat(data.cotizacion || 1),
-        "", // G: TOTAL (ARS) - formula
+        String(parseFloat(String(data.cotizacion || 1))),
+        // G: TOTAL (ARS) - formula (PROTECTED, don't write)
       ];
 
       await this.sheets.spreadsheets.values.update({
         spreadsheetId: this.spreadsheetId,
-        range: `${sheetName}!A${newRow}:G${newRow}`,
+        range: `${sheetName}!A${newRow}:F${newRow}`,
         valueInputOption: "USER_ENTERED",
-        resource: { values: [rowData] },
+        requestBody: { values: [rowData] },
       });
 
-      // Set formula
-      await this.sheets.spreadsheets.values.update({
-        spreadsheetId: this.spreadsheetId,
-        range: `${sheetName}!G${newRow}`,
-        valueInputOption: "USER_ENTERED",
-        resource: {
-          values: [
-            [
-              `=IFERROR(IF(E${newRow}="USD", D${newRow}*F${newRow}, IF(E${newRow}="EUR", D${newRow}*F${newRow}, D${newRow})), "")`,
+      // Set formula in protected column G
+      try {
+        await this.sheets.spreadsheets.values.update({
+          spreadsheetId: this.spreadsheetId,
+          range: `${sheetName}!G${newRow}`,
+          valueInputOption: "USER_ENTERED",
+          requestBody: {
+            values: [
+              [
+                `=IFERROR(IF(E${newRow}="USD", D${newRow}*F${newRow}, IF(E${newRow}="EUR", D${newRow}*F${newRow}, D${newRow})), "")`,
+              ],
             ],
-          ],
-        },
-      });
+          },
+        });
+      } catch (formulaError) {
+        Logger.warn(
+          `Could not write formula to column G (row ${newRow}): ${formulaError instanceof Error ? formulaError.message : String(formulaError)}`
+        );
+        Logger.warn(
+          "Make sure the service account has permission to edit protected ranges, or add the formula manually"
+        );
+      }
 
       Logger.log(`✅ INGRESO written successfully in row ${newRow}`);
     } catch (error) {
@@ -488,31 +500,41 @@ export class SheetsClient {
         fecha = new Date();
       }
 
+      // ✅ FIX: Don't write to column F (protected), only write A-E
       const rowData = [
         fecha,
-        data.origen.trim(),
-        parseFloat(data.monto_salida),
-        data.destino.trim(),
-        parseFloat(data.monto_entrada),
-        "", // F: BRECHA % - formula
+        data.origen?.trim() || "",
+        String(parseFloat(String(data.monto_salida || 0))),
+        data.destino?.trim() || "",
+        String(parseFloat(String(data.monto_entrada || 0))),
+        // F: BRECHA % - formula (PROTECTED, don't write)
       ];
 
       await this.sheets.spreadsheets.values.update({
         spreadsheetId: this.spreadsheetId,
-        range: `${sheetName}!A${newRow}:F${newRow}`,
+        range: `${sheetName}!A${newRow}:E${newRow}`,
         valueInputOption: "USER_ENTERED",
-        resource: { values: [rowData] },
+        requestBody: { values: [rowData] },
       });
 
-      // Set formula
-      await this.sheets.spreadsheets.values.update({
-        spreadsheetId: this.spreadsheetId,
-        range: `${sheetName}!F${newRow}`,
-        valueInputOption: "USER_ENTERED",
-        resource: {
-          values: [[`=IFERROR(IF(C${newRow}>0,((E${newRow}-C${newRow})/C${newRow})*100,""),"")`]],
-        },
-      });
+      // Set formula in protected column F
+      try {
+        await this.sheets.spreadsheets.values.update({
+          spreadsheetId: this.spreadsheetId,
+          range: `${sheetName}!F${newRow}`,
+          valueInputOption: "USER_ENTERED",
+          requestBody: {
+            values: [[`=IFERROR(IF(C${newRow}>0,((E${newRow}-C${newRow})/C${newRow})*100,""),"")`]],
+          },
+        });
+      } catch (formulaError) {
+        Logger.warn(
+          `Could not write formula to column F (row ${newRow}): ${formulaError instanceof Error ? formulaError.message : String(formulaError)}`
+        );
+        Logger.warn(
+          "Make sure the service account has permission to edit protected ranges, or add the formula manually"
+        );
+      }
 
       Logger.log(`✅ TRANSFERENCIA written successfully in row ${newRow}`);
     } catch (error) {
