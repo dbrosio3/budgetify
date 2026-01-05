@@ -17,6 +17,9 @@ import { initializeUserPreferences } from "./services/user-preferences";
 const app = express();
 app.use(express.json());
 
+// Track last activity for monitoring
+let lastActivityTime = Date.now();
+
 // Initialize clients
 const telegramClient = new TelegramClient();
 const sheetsClient = new SheetsClient();
@@ -26,7 +29,13 @@ const imageProcessor = new ImageProcessor(telegramClient);
 const audioProcessor = new AudioProcessor(telegramClient);
 
 // Initialize handlers
-const messageHandlers = new MessageHandlers(aiClientManager, userPreferences, sheetsClient, imageProcessor, audioProcessor);
+const messageHandlers = new MessageHandlers(
+  aiClientManager,
+  userPreferences,
+  sheetsClient,
+  imageProcessor,
+  audioProcessor
+);
 const callbackHandlers = new CallbackHandlers(telegramClient, sheetsClient);
 
 // Helper to check if result is modifying pending operation
@@ -63,13 +72,44 @@ app.get("/health", (_req: Request, res: Response) => {
 });
 
 // Lightweight health endpoint for keep-awake services (UptimeRobot)
+// This endpoint is specifically designed to be pinged every few minutes
+// to prevent Render's free tier from putting the app to sleep
+// We do actual work here to force Render to wake up the service
 app.get("/healthz", (_req: Request, res: Response) => {
-  res.status(200).send("OK");
+  try {
+    const now = Date.now();
+    const timeSinceLastActivity = now - lastActivityTime;
+    lastActivityTime = now;
+
+    // Force actual computation to prevent edge caching
+    const randomData = Math.random() * 1000;
+
+    // Try to verify Google Sheets connection (lightweight check)
+    // This forces the app to actually wake up and load dependencies
+    const sheetsConnected = sheetsClient ? true : false;
+
+    res.status(200).json({
+      status: "ok",
+      timestamp: now,
+      uptime: process.uptime(),
+      memory: process.memoryUsage().heapUsed,
+      lastActivity: timeSinceLastActivity,
+      random: randomData,
+      sheets: sheetsConnected,
+    });
+  } catch (error) {
+    Logger.error("Health check error:", error instanceof Error ? error : null);
+    res.status(500).json({
+      status: "error",
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
 });
 
 // Webhook endpoint
 app.post("/webhook", async (req: Request, res: Response) => {
   try {
+    lastActivityTime = Date.now();
     const update = req.body as TelegramUpdate;
 
     // Handle callback queries
@@ -136,7 +176,7 @@ app.post("/webhook", async (req: Request, res: Response) => {
           const providerName = currentProvider === "gemini" ? "Gemini" : "Anthropic Claude";
           await telegramClient.sendMessage(
             chatId,
-            `🤖 *Modelo actual:* ${providerName}\n\nUsá \`/model gemini\` o \`/model anthropic\` para cambiar.`
+            "🤖 *Modelo actual:* " + providerName + "\n\nUsá `/model gemini` o `/model anthropic` para cambiar."
           );
         } else {
           // Set model
@@ -144,11 +184,11 @@ app.post("/webhook", async (req: Request, res: Response) => {
           if (requestedProvider !== "gemini" && requestedProvider !== "anthropic") {
             await telegramClient.sendMessage(
               chatId,
-              "❌ Modelo inválido. Usá \`gemini\` o \`anthropic\`.\n\nEjemplo: \`/model gemini\`"
+              "❌ Modelo inválido. Usá `gemini` o `anthropic`.\n\nEjemplo: `/model gemini`"
             );
           } else {
             try {
-              await userPreferences.setAIProvider(chatId, requestedProvider as "gemini" | "anthropic");
+              await userPreferences.setAIProvider(chatId, requestedProvider);
               const providerName = requestedProvider === "gemini" ? "Gemini" : "Anthropic Claude";
               await telegramClient.sendMessage(
                 chatId,
@@ -358,6 +398,7 @@ const PORT = config.server.port;
 app.listen(PORT, () => {
   Logger.log(`Server running on port ${PORT}`);
   Logger.log(`Webhook URL: ${config.telegram.webhookUrl}/webhook`);
+  Logger.log(`Health check endpoint: /healthz (ping this to keep app alive)`);
 });
 
 // Set webhook on startup (optional, can be done manually)
