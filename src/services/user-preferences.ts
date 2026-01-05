@@ -29,7 +29,7 @@ export class UserPreferencesService {
         return provider;
       }
     } catch (error) {
-      Logger.error(`Error reading AI provider preference for chat ${chatId}`, error);
+      Logger.error("Error reading AI provider preference for chat " + String(chatId), error);
     }
 
     // Return default provider
@@ -41,20 +41,15 @@ export class UserPreferencesService {
    * Set the AI provider preference for a user
    */
   async setAIProvider(chatId: number, provider: AIProvider): Promise<void> {
-    // Validate provider
-    if (provider !== "gemini" && provider !== "anthropic") {
-      throw new Error(`Invalid AI provider: ${provider}. Must be "gemini" or "anthropic"`);
-    }
-
     // Update cache
     this.preferencesCache.set(chatId, provider);
 
     // Persist to Sheets
     try {
       await this.writeProviderToSheets(chatId, provider);
-      Logger.log(`AI provider preference updated for chat ${chatId}: ${provider}`);
+      Logger.log("AI provider preference updated for chat " + String(chatId) + ": " + provider);
     } catch (error) {
-      Logger.error(`Error writing AI provider preference for chat ${chatId}`, error);
+      Logger.error("Error writing AI provider preference for chat " + String(chatId), error);
       // Don't throw - cache is updated, Sheets write can fail gracefully
     }
   }
@@ -93,8 +88,9 @@ export function initializeUserPreferences(sheetsClient: SheetsClient): UserPrefe
 
 export function getUserPreferences(): UserPreferencesService {
   if (!userPreferencesServiceInstance) {
-    throw new Error("UserPreferencesService not initialized. Call initializeUserPreferences first.");
+    throw new Error(
+      "UserPreferencesService not initialized. Call initializeUserPreferences first."
+    );
   }
   return userPreferencesServiceInstance;
 }
-

@@ -167,7 +167,9 @@ export class MessageHandlers {
     let response: string;
     try {
       response = await aiClient.generateContentWithVision(prompt, imageData);
-      Logger.log(`Response received from ${userProvider === "gemini" ? "Gemini" : "Anthropic"} (${response.length} characters)`);
+      Logger.log(
+        `Response received from ${userProvider === "gemini" ? "Gemini" : "Anthropic"} (${response.length} characters)`
+      );
     } catch (visionError) {
       Logger.error("Error in Gemini Vision", visionError);
       throw new Error(

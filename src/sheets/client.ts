@@ -580,12 +580,24 @@ export class SheetsClient {
       });
 
       const values = (response.data.values as unknown[][]) || [];
-      
+
       // Skip header row (if exists)
-      for (let i = values.length > 0 && values[0]?.[0] === "chatId" ? 1 : 0; i < values.length; i++) {
+      for (
+        let i = values.length > 0 && values[0]?.[0] === "chatId" ? 1 : 0;
+        i < values.length;
+        i++
+      ) {
         const row = values[i];
-        if (row && row[0] && String(row[0]) === String(chatId)) {
-          return String(row[1] || "").toLowerCase().trim();
+        const cell0 = row?.[0];
+        if (
+          row &&
+          (typeof cell0 === "string" || typeof cell0 === "number") &&
+          String(cell0) === String(chatId)
+        ) {
+          const cell1 = row?.[1];
+          return (typeof cell1 === "string" || typeof cell1 === "number" ? String(cell1) : "")
+            .toLowerCase()
+            .trim();
         }
       }
 
@@ -645,9 +657,18 @@ export class SheetsClient {
       let userRowIndex = -1;
 
       // Skip header row
-      for (let i = values.length > 0 && values[0]?.[0] === "chatId" ? 1 : 0; i < values.length; i++) {
+      for (
+        let i = values.length > 0 && values[0]?.[0] === "chatId" ? 1 : 0;
+        i < values.length;
+        i++
+      ) {
         const row = values[i];
-        if (row && row[0] && String(row[0]) === String(chatId)) {
+        const cell0 = row?.[0];
+        if (
+          row &&
+          (typeof cell0 === "string" || typeof cell0 === "number") &&
+          String(cell0) === String(chatId)
+        ) {
           userRowIndex = i + 1; // +1 because Sheets is 1-indexed
           break;
         }

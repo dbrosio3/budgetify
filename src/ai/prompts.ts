@@ -10,12 +10,15 @@ export class PromptBuilder {
     misDatos: PersonalData
   ): string {
     // Create category description
-    let descripcionCategorias = "📋 CATEGORÍAS DISPONIBLES (DEBÉS USAR ALGUNA DE ESTAS OBLIGATORIAMENTE):\n";
+    let descripcionCategorias =
+      "📋 CATEGORÍAS DISPONIBLES (DEBÉS USAR ALGUNA DE ESTAS OBLIGATORIAMENTE):\n";
     for (const macro in categoriasMap) {
       descripcionCategorias += `\n${macro}:\n`;
       categoriasMap[macro].forEach((sub) => {
         // Extract text without emoji for display
-        const subSinEmoji = sub.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, "").trim();
+        const subSinEmoji = sub
+          .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, "")
+          .trim();
         descripcionCategorias += `  • ${subSinEmoji}\n`;
       });
     }
@@ -117,7 +120,9 @@ REGLAS CRÍTICAS DE FORMATO:
       descripcionCategorias += `\n${macro}:\n`;
       categoriasMap[macro].forEach((sub) => {
         // Extract text without emoji for display
-        const subSinEmoji = sub.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, "").trim();
+        const subSinEmoji = sub
+          .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, "")
+          .trim();
         descripcionCategorias += `  • ${subSinEmoji}\n`;
       });
     }

@@ -176,7 +176,9 @@ app.post("/webhook", async (req: Request, res: Response) => {
           const providerName = currentProvider === "gemini" ? "Gemini" : "Anthropic Claude";
           await telegramClient.sendMessage(
             chatId,
-            "🤖 *Modelo actual:* " + providerName + "\n\nUsá `/model gemini` o `/model anthropic` para cambiar."
+            "🤖 *Modelo actual:* " +
+              providerName +
+              "\n\nUsá `/model gemini` o `/model anthropic` para cambiar."
           );
         } else {
           // Set model
