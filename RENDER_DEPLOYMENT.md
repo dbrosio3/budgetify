@@ -29,7 +29,7 @@ This guide covers deploying Budgetify Bot to Render's free tier and keeping it a
 3. **Connect your Git repository** (authorize Render if needed)
 4. **Configure the service:**
    - **Name**: `budgetify-bot`
-   - **Environment**: `Bun`
+   - **Environment**: `Node` (Render supports Bun through Node.js runtime)
    - **Region**: Choose closest to you (free tier available)
    - **Branch**: `main` (or your default branch)
    - **Root Directory**: Leave empty (or `.` if needed)
