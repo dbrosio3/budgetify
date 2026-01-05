@@ -2,6 +2,7 @@ services:
   - type: web
     name: budgetify-bot
     runtime: node
+    plan: free
     buildCommand: bun install
     startCommand: bun run src/server.ts
     envVars:

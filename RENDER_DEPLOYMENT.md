@@ -49,7 +49,7 @@ In Render dashboard → Your Service → **Environment**, add the following vari
 - **`TELEGRAM_CHAT_ID`** - Your Telegram chat ID (for security)
 - **`GEMINI_API_KEY`** - Google Gemini API key
 - **`GOOGLE_SHEETS_SPREADSHEET_ID`** - Your Google Sheets spreadsheet ID
-- **`GOOGLE_SERVICE_ACCOUNT_JSON`** - Full JSON string of your service account credentials
+- **`GOOGLE_SERVICE_ACCOUNT_JSON`** - Full JSON string of your service account credentials (paste the entire JSON content, not a file path)
 - **`WEBHOOK_URL`** - Your Render URL (e.g., `https://budgetify-bot.onrender.com`)
 
 ### Optional Variables
@@ -63,7 +63,13 @@ In Render dashboard → Your Service → **Environment**, add the following vari
 
 ### Important Notes
 
-- **`GOOGLE_SERVICE_ACCOUNT_JSON`**: Paste the entire JSON as a single string. Render will handle it properly. Make sure to wrap it in quotes if setting via CLI, or just paste directly in the dashboard.
+- **`GOOGLE_SERVICE_ACCOUNT_JSON`**: This is different from `GOOGLE_APPLICATION_CREDENTIALS` (which is a file path). For Render, you need to paste the **entire JSON content** as a single string. The JSON should look like:
+  ```json
+  {"type":"service_account","project_id":"...","private_key":"...","client_email":"..."}
+  ```
+  - In Render dashboard: Just paste the JSON directly (Render handles it automatically)
+  - The code will parse this JSON string automatically - no need to escape quotes
+  - Make sure it's valid JSON (all on one line, or properly formatted)
 - **`WEBHOOK_URL`**: Set this to your Render service URL. You'll get the URL after deployment (format: `https://your-service-name.onrender.com`).
 - All sensitive variables should be marked as **"Secret"** in Render (they are by default when you paste them).
 
