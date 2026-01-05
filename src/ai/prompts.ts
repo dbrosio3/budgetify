@@ -10,13 +10,24 @@ export class PromptBuilder {
     misDatos: PersonalData
   ): string {
     // Create category description
-    let descripcionCategorias = "📋 ESTRUCTURA DE CATEGORÍAS:\n";
+    let descripcionCategorias = "📋 CATEGORÍAS DISPONIBLES (DEBÉS USAR ALGUNA DE ESTAS OBLIGATORIAMENTE):\n";
     for (const macro in categoriasMap) {
       descripcionCategorias += `\n${macro}:\n`;
       categoriasMap[macro].forEach((sub) => {
-        descripcionCategorias += `  • ${sub}\n`;
+        // Extract text without emoji for display
+        const subSinEmoji = sub.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, "").trim();
+        descripcionCategorias += `  • ${subSinEmoji}\n`;
       });
     }
+    descripcionCategorias += "\n⚠️ REGLAS CRÍTICAS SOBRE CATEGORÍAS:\n";
+    descripcionCategorias +=
+      "1. macro_categoria: DEBÉS usar EXACTAMENTE una de las macro-categorías listadas arriba (sin emoji).\n";
+    descripcionCategorias +=
+      "2. subcategoria: DEBÉS usar EXACTAMENTE una de las subcategorías que corresponda a la macro elegida.\n";
+    descripcionCategorias +=
+      "3. NUNCA inventes categorías. NUNCA uses texto libre que no esté en la lista.\n";
+    descripcionCategorias +=
+      "4. Si ninguna de las categorías es apripiada utilizar macro-categoria: 'REGALOS/OTROS' / subcategoria: 'Otros' como default.\n";
 
     return `Sos un experto en leer comprobantes de pago argentinos. 
 Analizá esta imagen y extraé TODOS los datos del ticket/factura/comprobante.
@@ -37,10 +48,10 @@ Respondé ÚNICAMENTE un JSON (sin markdown) con:
 {
   "tipo": "GASTO" | "INGRESO" | "TRANSFERENCIA",
   "datos": {
-    "fecha": "fecha del comprobante (formato DD/MM/YYYY)",
+    "fecha": "fecha del comprobante (formato DD/MM/YYYY o ISO YYYY-MM-DD)",
     "descripcion": "comercio o concepto (o nombre de quien transfiere si es ingreso)",
-    "macro_categoria": "UNA de las macro-categorías disponibles (sin emoji)",
-    "subcategoria": "subcategoría específica que corresponda a la macro",
+    "macro_categoria": "UNA de las macro-categorías listadas arriba (EXACTAMENTE como aparece, sin emoji). NUNCA uses texto libre.",
+    "subcategoria": "UNA de las subcategorías listadas para la macro elegida (texto SIN emoji). NUNCA uses texto libre.",
     "cuenta": "cuenta usada (si está en el comprobante, sino inferila)",
     "monto": número sin símbolos,
     "moneda": "ARS" o "USD" o "EUR",
@@ -101,18 +112,30 @@ REGLAS CRÍTICAS DE FORMATO:
     operacionPendiente: TransactionResult | null = null
   ): string {
     // Create category description
-    let descripcionCategorias = "Categorías disponibles:\n";
+    let descripcionCategorias = "📋 CATEGORÍAS DISPONIBLES (DEBÉS USAR SOLO ESTAS):\n";
     for (const macro in categoriasMap) {
-      descripcionCategorias += `${macro}: ${categoriasMap[macro].join(", ")}\n`;
+      descripcionCategorias += `\n${macro}:\n`;
+      categoriasMap[macro].forEach((sub) => {
+        // Extract text without emoji for display
+        const subSinEmoji = sub.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, "").trim();
+        descripcionCategorias += `  • ${subSinEmoji}\n`;
+      });
     }
-    descripcionCategorias += "\n⚠️ IMPORTANTE sobre subcategorías:\n";
+    descripcionCategorias += "\n⚠️ REGLAS CRÍTICAS SOBRE CATEGORÍAS:\n";
     descripcionCategorias +=
-      "- Las subcategorías pueden tener emojis (ej: ✂️ Peluquería/Barbería)\n";
-    descripcionCategorias += '- Devolvé SOLO el texto SIN emoji (ej: "Peluquería/Barbería")\n';
+      "1. macro_categoria: DEBÉS usar EXACTAMENTE una de las macro-categorías listadas arriba (sin emoji).\n";
     descripcionCategorias +=
-      '- Hacé coincidencias parciales: si el usuario dice "peluquería", matcheá con "Peluquería/Barbería"\n';
+      "2. subcategoria: DEBÉS usar EXACTAMENTE una de las subcategorías que corresponda a la macro elegida.\n";
     descripcionCategorias +=
-      '- Si el usuario menciona algo relacionado (ej: "corte de pelo", "barbería"), elegí la subcategoría más apropiada\n';
+      "3. Si el usuario dice algo como 'regalo', 'otros', o cualquier texto, NO lo uses directamente.\n";
+    descripcionCategorias +=
+      "   En su lugar, buscá en la lista de categorías disponibles y elegí la MÁS APROPIADA.\n";
+    descripcionCategorias +=
+      "4. Hacé coincidencias parciales inteligentes: si el usuario dice 'peluquería', matcheá con 'Peluquería/Barbería' de la lista.\n";
+    descripcionCategorias +=
+      "5. Si no encontrás una categoría apropiada, usá la primera subcategoría de la macro más cercana.\n";
+    descripcionCategorias +=
+      "6. NUNCA inventes categorías. NUNCA uses el texto literal que el usuario menciona si no está en la lista.\n";
 
     // Build context text if exists
     let contextoTexto = "";
@@ -188,10 +211,10 @@ Formato JSON requerido (responde SOLO esto, sin texto adicional):
 {
   "tipo": "GASTO" | "INGRESO" | "TRANSFERENCIA",
   "datos": {
-    "fecha": "DD/MM/YYYY" o "" si no se puede inferir,
+    "fecha": "DD/MM/YYYY o YYYY-MM-DD (formato ISO)" o "" si no se puede inferir,
     "descripcion": "..." o "" si no está claro,
-    "macro_categoria": "sin emoji, ej: ALIMENTACIÓN" o "" si no se puede determinar,
-    "subcategoria": "texto SIN emoji que corresponda a la macro (ej: si el usuario dice 'peluquería' o 'barbería', devolvé 'Peluquería/Barbería'). Hacé coincidencias parciales inteligentes. NUNCA devolvás string vacío si hay una macro_categoria seleccionada.",
+    "macro_categoria": "UNA de las macro-categorías listadas arriba (EXACTAMENTE como aparece, sin emoji). NUNCA uses texto libre del usuario.",
+    "subcategoria": "UNA de las subcategorías listadas para la macro elegida (texto SIN emoji). NUNCA uses texto libre del usuario. Si el usuario menciona algo, buscá la subcategoría más apropiada en la lista.",
     "cuenta": "..." o "" si no está claro,
     "monto": número o 0 si no está claro,
     "cuotas": 1 si no aplica,
@@ -205,7 +228,11 @@ Formato JSON requerido (responde SOLO esto, sin texto adicional):
 }
 
 Si es GASTO: Completa todos los campos posibles. Si faltan datos críticos (monto, descripcion), usa valores por defecto razonables.
-⚠️ CRÍTICO para GASTO: Si seleccionaste una macro_categoria, SIEMPRE debés seleccionar también una subcategoria correspondiente. Buscá en la lista de subcategorías de esa macro y hacé coincidencias parciales si es necesario (ej: 'peluquería' → 'Peluquería/Barbería', 'super' → 'Supermercado').
+🚨 CRÍTICO para CATEGORÍAS:
+- macro_categoria: DEBÉS elegir EXACTAMENTE una de las macro-categorías listadas arriba. Si el usuario dice "regalo" o "otros", buscá en la lista la categoría más apropiada (probablemente "OTROS" si existe, o la primera disponible).
+- subcategoria: DEBÉS elegir EXACTAMENTE una de las subcategorías que corresponda a la macro elegida. Si el usuario menciona algo que no está en la lista, hacé coincidencias parciales inteligentes (ej: 'peluquería' → 'Peluquería/Barbería', 'super' → 'Supermercado').
+- NUNCA uses el texto literal que el usuario menciona si no está en la lista de categorías disponibles.
+- Si seleccionaste una macro_categoria, SIEMPRE debés seleccionar también una subcategoria correspondiente de esa macro.
 Si es INGRESO: usa {fecha, fuente, cuenta, monto, moneda, cotizacion}.
 Si es TRANSFERENCIA: usa {fecha, origen, destino, monto_salida, monto_entrada}.
 

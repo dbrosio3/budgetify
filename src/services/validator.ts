@@ -1,6 +1,41 @@
 import { ValidationError } from "../utils/errors";
 import { TransactionResult, TransactionData } from "../types";
 
+/**
+ * Parses a date string in various formats (DD/MM/YYYY or ISO format) to a Date object
+ * @param fecha - Date string in DD/MM/YYYY format or ISO format (e.g., 2026-01-03T03:00:00.000Z)
+ * @returns Date object or null if parsing fails
+ */
+export function parseDate(fecha: string): Date | null {
+  if (!fecha || typeof fecha !== "string") {
+    return null;
+  }
+
+  // Try ISO format first (e.g., 2026-01-03T03:00:00.000Z or 2026-01-03)
+  const isoMatch = fecha.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?/);
+  if (isoMatch) {
+    const año = parseInt(isoMatch[1], 10);
+    const mes = parseInt(isoMatch[2], 10);
+    const dia = parseInt(isoMatch[3], 10);
+    if (!isNaN(año) && !isNaN(mes) && !isNaN(dia)) {
+      return new Date(año, mes - 1, dia);
+    }
+  }
+
+  // Try DD/MM/YYYY format
+  const partes = fecha.split("/");
+  if (partes.length === 3) {
+    const dia = parseInt(partes[0], 10);
+    const mes = parseInt(partes[1], 10);
+    const año = parseInt(partes[2], 10);
+    if (!isNaN(dia) && !isNaN(mes) && !isNaN(año)) {
+      return new Date(año, mes - 1, dia);
+    }
+  }
+
+  return null;
+}
+
 export class Validator {
   static validateGasto(data: TransactionData): void {
     if (!data.descripcion || data.descripcion.trim() === "") {
@@ -117,22 +152,13 @@ export class Validator {
 
     let date: Date;
     if (typeof fecha === "string") {
-      const partes = fecha.split("/");
-      if (partes.length === 3) {
-        const dia = parseInt(partes[0], 10);
-        const mes = parseInt(partes[1], 10);
-        const año = parseInt(partes[2], 10);
-        if (isNaN(dia) || isNaN(mes) || isNaN(año)) {
-          throw new ValidationError(
-            `Formato de fecha inválido. Esperado: DD/MM/YYYY. Recibido: ${fecha}`
-          );
-        }
-        date = new Date(año, mes - 1, dia);
-      } else {
+      const parsedDate = parseDate(fecha);
+      if (!parsedDate) {
         throw new ValidationError(
-          `Formato de fecha inválido. Esperado: DD/MM/YYYY. Recibido: ${fecha}`
+          `Formato de fecha inválido. Esperado: DD/MM/YYYY o formato ISO (YYYY-MM-DD). Recibido: ${fecha}`
         );
       }
+      date = parsedDate;
     } else {
       date = fecha;
     }

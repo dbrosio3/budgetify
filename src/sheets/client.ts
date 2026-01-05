@@ -2,6 +2,7 @@ import { google, sheets_v4 } from "googleapis";
 import { config } from "../config";
 import { Logger } from "../utils/logger";
 import { SheetsAPIError } from "../utils/errors";
+import { parseDate } from "../services/validator";
 import {
   CategoryMap,
   PersonalData,
@@ -297,15 +298,8 @@ export class SheetsClient {
       // Parse date
       let fecha: Date;
       if (typeof data.fecha === "string") {
-        const partes = data.fecha.split("/");
-        if (partes.length === 3) {
-          const dia = parseInt(partes[0], 10);
-          const mes = parseInt(partes[1], 10);
-          const año = parseInt(partes[2], 10);
-          fecha = new Date(año, mes - 1, dia);
-        } else {
-          fecha = new Date();
-        }
+        const parsedDate = parseDate(data.fecha);
+        fecha = parsedDate || new Date();
       } else {
         fecha = new Date();
       }
@@ -412,15 +406,8 @@ export class SheetsClient {
       // Parse date
       let fecha: Date;
       if (typeof data.fecha === "string") {
-        const partes = data.fecha.split("/");
-        if (partes.length === 3) {
-          const dia = parseInt(partes[0], 10);
-          const mes = parseInt(partes[1], 10);
-          const año = parseInt(partes[2], 10);
-          fecha = new Date(año, mes - 1, dia);
-        } else {
-          fecha = new Date();
-        }
+        const parsedDate = parseDate(data.fecha);
+        fecha = parsedDate || new Date();
       } else {
         fecha = new Date();
       }
@@ -487,15 +474,8 @@ export class SheetsClient {
       // Parse date
       let fecha: Date;
       if (typeof data.fecha === "string") {
-        const partes = data.fecha.split("/");
-        if (partes.length === 3) {
-          const dia = parseInt(partes[0], 10);
-          const mes = parseInt(partes[1], 10);
-          const año = parseInt(partes[2], 10);
-          fecha = new Date(año, mes - 1, dia);
-        } else {
-          fecha = new Date();
-        }
+        const parsedDate = parseDate(data.fecha);
+        fecha = parsedDate || new Date();
       } else {
         fecha = new Date();
       }
