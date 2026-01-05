@@ -99,6 +99,27 @@ The webhook is automatically set on startup, or you can set it manually:
 curl https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://your-app.fly.dev/webhook
 ```
 
+## Deployment to Render (Free Tier)
+
+For zero-cost deployment on Render's free tier:
+
+1. **Follow the detailed guide**: See [RENDER_DEPLOYMENT.md](./RENDER_DEPLOYMENT.md) for complete step-by-step instructions.
+
+2. **Quick setup:**
+   - Push code to GitHub/GitLab/Bitbucket
+   - Create new Web Service in [Render dashboard](https://dashboard.render.com)
+   - Connect repository (or use Blueprint with `render.yaml`)
+   - Set environment variables in Render dashboard
+   - Deploy
+
+3. **Keep it awake:**
+   - Render's free tier spins down after 15 minutes of inactivity
+   - Set up [UptimeRobot](https://uptimerobot.com) (free) to ping `/healthz` endpoint every 5 minutes
+   - This keeps the service active at $0 cost
+   - See [RENDER_DEPLOYMENT.md](./RENDER_DEPLOYMENT.md) for detailed UptimeRobot setup
+
+**Note:** Total maintenance cost is $0/month. You only pay for AI API usage (tokens).
+
 ## Project Structure
 
 ```

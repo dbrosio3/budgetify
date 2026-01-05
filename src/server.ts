@@ -62,6 +62,11 @@ app.get("/health", (_req: Request, res: Response) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
+// Lightweight health endpoint for keep-awake services (UptimeRobot)
+app.get("/healthz", (_req: Request, res: Response) => {
+  res.status(200).send("OK");
+});
+
 // Webhook endpoint
 app.post("/webhook", async (req: Request, res: Response) => {
   try {
