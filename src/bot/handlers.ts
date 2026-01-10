@@ -111,21 +111,30 @@ export class MessageHandlers {
       }
 
       // Try to infer subcategory if missing but macro category exists
-      if (
-        (!result.datos.subcategoria || result.datos.subcategoria.trim() === "") &&
+      // Note: subcategoria and macro_categoria can be numbers (indices) or strings
+      const subcategoriaEmpty =
+        !result.datos.subcategoria ||
+        (typeof result.datos.subcategoria === "string" && result.datos.subcategoria.trim() === "");
+      const macroCategoriaPresent =
         result.datos.macro_categoria &&
-        result.datos.macro_categoria.trim() !== ""
-      ) {
-        const inferredSubcategory = this.tryInferSubcategory(
-          text,
-          result.datos.macro_categoria,
-          config.categoriasMap
-        );
-        if (inferredSubcategory) {
-          Logger.log(
-            `Inferred subcategory "${inferredSubcategory}" for macro "${result.datos.macro_categoria}" from text: "${text}"`
+        (typeof result.datos.macro_categoria === "number" ||
+          (typeof result.datos.macro_categoria === "string" &&
+            result.datos.macro_categoria.trim() !== ""));
+
+      if (subcategoriaEmpty && macroCategoriaPresent) {
+        // Only try to infer if macro_categoria is a string (not a numeric index)
+        if (typeof result.datos.macro_categoria === "string") {
+          const inferredSubcategory = this.tryInferSubcategory(
+            text,
+            result.datos.macro_categoria,
+            config.categoriasMap
           );
-          result.datos.subcategoria = inferredSubcategory;
+          if (inferredSubcategory) {
+            Logger.log(
+              `Inferred subcategory "${inferredSubcategory}" for macro "${result.datos.macro_categoria}" from text: "${text}"`
+            );
+            result.datos.subcategoria = inferredSubcategory;
+          }
         }
       }
 
@@ -277,21 +286,30 @@ export class MessageHandlers {
 
     // Apply same fallback logic for GASTO as in handleTextMessage
     if (result.tipo === "GASTO") {
-      if (
-        (!result.datos.subcategoria || result.datos.subcategoria.trim() === "") &&
+      // Note: subcategoria and macro_categoria can be numbers (indices) or strings
+      const subcategoriaEmpty =
+        !result.datos.subcategoria ||
+        (typeof result.datos.subcategoria === "string" && result.datos.subcategoria.trim() === "");
+      const macroCategoriaPresent =
         result.datos.macro_categoria &&
-        result.datos.macro_categoria.trim() !== ""
-      ) {
-        const inferredSubcategory = this.tryInferSubcategory(
-          textoTranscrito,
-          result.datos.macro_categoria,
-          config.categoriasMap
-        );
-        if (inferredSubcategory) {
-          Logger.log(
-            `Inferred subcategory "${inferredSubcategory}" for macro "${result.datos.macro_categoria}" from transcribed text: "${textoTranscrito}"`
+        (typeof result.datos.macro_categoria === "number" ||
+          (typeof result.datos.macro_categoria === "string" &&
+            result.datos.macro_categoria.trim() !== ""));
+
+      if (subcategoriaEmpty && macroCategoriaPresent) {
+        // Only try to infer if macro_categoria is a string (not a numeric index)
+        if (typeof result.datos.macro_categoria === "string") {
+          const inferredSubcategory = this.tryInferSubcategory(
+            textoTranscrito,
+            result.datos.macro_categoria,
+            config.categoriasMap
           );
-          result.datos.subcategoria = inferredSubcategory;
+          if (inferredSubcategory) {
+            Logger.log(
+              `Inferred subcategory "${inferredSubcategory}" for macro "${result.datos.macro_categoria}" from transcribed text: "${textoTranscrito}"`
+            );
+            result.datos.subcategoria = inferredSubcategory;
+          }
         }
       }
     }

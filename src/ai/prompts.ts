@@ -53,7 +53,7 @@ export class PromptBuilder {
 
     return `Analizá esta imagen de comprobante y extraé los datos.
 ${caption ? `Contexto del usuario: "${caption}"` : ""}
-Fecha actual: ${new Date().toLocaleDateString("es-AR")}
+Fecha de hoy (solo para referencia): ${new Date().toLocaleDateString("es-AR")}
 
 🏦 CUENTAS: ${cuentasNumeradas}
 
@@ -67,8 +67,9 @@ ${descripcionCategorias}
 - Alias: ${misDatos.alias.join(", ")}
 ${misDatos.cbu ? `- CBU/CVU: ${misDatos.cbu}` : ""}
 
-⚠️ REGLA CRÍTICA: Los campos cuenta, macro_categoria, subcategoria, moneda, split DEBEN ser NÚMEROS ENTEROS.
-NUNCA uses null, strings, ni texto. Si no estás seguro, usá 1 como default.
+⚠️ REGLAS CRÍTICAS:
+1. Los campos cuenta, macro_categoria, subcategoria, moneda, split DEBEN ser NÚMEROS ENTEROS. NUNCA uses null, strings, ni texto. Si no estás seguro, usá 1 como default.
+2. ⚠️ FECHA: Usá SIEMPRE la fecha del comprobante, NO la fecha de hoy. Buscá la fecha en el ticket/factura.
 
 📋 EJEMPLO DE RESPUESTA CORRECTA:
 {
@@ -98,7 +99,7 @@ Respondé SOLO con JSON válido (sin markdown):
 {
   "tipo": "GASTO" | "INGRESO" | "TRANSFERENCIA",
   "datos": {
-    "fecha": "DD/MM/YYYY",
+    "fecha": "DD/MM/YYYY (del comprobante, NO de hoy)",
     "descripcion": "texto",
     "macro_categoria": INTEGER,
     "subcategoria": INTEGER,
@@ -119,6 +120,7 @@ REGLAS:
 - GASTO = dinero sale de mis cuentas (compras, pagos)
 - INGRESO = dinero entra a mis cuentas (cobros, transferencias recibidas)
 - TRANSFERENCIA = movimiento entre mis propias cuentas
+- Fecha: SIEMPRE la del comprobante (buscar en el ticket), NUNCA usar fecha de hoy
 - Monto: sin separadores de miles, punto decimal (1234.56)
 - Si no hay cuotas, poné cuotas=1 y n_cuota=1
 - Split: 1=Solo mío, 2=Compartido 50/50`;
@@ -206,7 +208,7 @@ REGLAS:
     return `Extraé datos financieros del mensaje. Respondé SOLO con JSON válido.
 
 Usuario dice: "${text}"
-Fecha actual: ${new Date().toLocaleDateString("es-AR")}
+Fecha de hoy (solo para referencia): ${new Date().toLocaleDateString("es-AR")}
 
 🏦 CUENTAS: ${cuentasNumeradas}
 
@@ -216,8 +218,9 @@ ${descripcionCategorias}
 🔄 SPLIT: ${splitNumerado}
 ${contextoTexto}
 
-⚠️ REGLA CRÍTICA: Los campos cuenta, macro_categoria, subcategoria, moneda, split DEBEN ser NÚMEROS ENTEROS.
-NUNCA uses null, strings, ni texto. Si no estás seguro, usá 1 como default.
+⚠️ REGLAS CRÍTICAS:
+1. Los campos cuenta, macro_categoria, subcategoria, moneda, split DEBEN ser NÚMEROS ENTEROS. NUNCA uses null, strings, ni texto. Si no estás seguro, usá 1 como default.
+2. ⚠️ FECHA: Si el usuario menciona "hoy", "ayer", o fechas relativas, calculá la fecha real. Si menciona una fecha específica, usala. Si no menciona fecha, dejá el campo vacío "".
 
 📋 EJEMPLO DE RESPUESTA CORRECTA:
 {
@@ -245,7 +248,7 @@ Respondé SOLO con JSON (sin markdown ni texto adicional):
 {
   "tipo": "GASTO" | "INGRESO" | "TRANSFERENCIA",
   "datos": {
-    "fecha": "DD/MM/YYYY" o "",
+    "fecha": "DD/MM/YYYY (calculá si dice hoy/ayer)" o "",
     "descripcion": "texto",
     "macro_categoria": INTEGER,
     "subcategoria": INTEGER,
@@ -263,6 +266,7 @@ Respondé SOLO con JSON (sin markdown ni texto adicional):
 REGLAS:
 - Si hay OPERACIÓN PENDIENTE arriba, el usuario la está modificando. Mantené campos no mencionados.
 - Si el usuario menciona categoría por nombre, buscá el número en la lista.
+- Fecha: "hoy" → usa fecha de hoy, "ayer" → resta 1 día, fecha específica → usá esa, sin fecha → ""
 - INGRESO: usá fuente en vez de descripcion, agregá cotizacion si moneda != ARS
 - TRANSFERENCIA: usá origen, destino (números de cuenta), monto_salida, monto_entrada`;
   }
