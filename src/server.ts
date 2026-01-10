@@ -81,7 +81,8 @@ app.get("/health", (_req: Request, res: Response) => {
 // This endpoint is specifically designed to be pinged every few minutes
 // to prevent Render's free tier from putting the app to sleep
 // We do actual work here to force Render to wake up the service
-app.get("/healthz", (_req: Request, res: Response) => {
+// Based on: https://sergeiliski.medium.com/how-to-run-a-full-time-app-on-renders-free-tier-without-it-sleeping-bec26776d0b9
+app.get("/healthz", async (_req: Request, res: Response) => {
   try {
     const now = Date.now();
     const timeSinceLastActivity = now - lastActivityTime;
@@ -94,6 +95,13 @@ app.get("/healthz", (_req: Request, res: Response) => {
     // This forces the app to actually wake up and load dependencies
     const sheetsConnected = sheetsClient ? true : false;
 
+    // Ping Redis to force actual connection work and prevent service from sleeping
+    // This is critical: doing real I/O ensures Render wakes up the service
+    // Based on the article: https://sergeiliski.medium.com/how-to-run-a-full-time-app-on-renders-free-tier-without-it-sleeping-bec26776d0b9
+    const redisStart = Date.now();
+    const redisConnected = await sessionManager.ping();
+    const redisLatency = Date.now() - redisStart;
+
     res.status(200).json({
       status: "ok",
       timestamp: now,
@@ -102,6 +110,8 @@ app.get("/healthz", (_req: Request, res: Response) => {
       lastActivity: timeSinceLastActivity,
       random: randomData,
       sheets: sheetsConnected,
+      redis: redisConnected,
+      redisLatency: redisLatency,
     });
   } catch (error) {
     Logger.error("Health check error:", error instanceof Error ? error : null);

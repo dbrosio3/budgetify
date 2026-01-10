@@ -77,6 +77,14 @@ In Render dashboard → Your Service → **Environment**, add the following vari
 
 Render's free tier automatically spins down services after **15 minutes of inactivity**. To prevent this, we'll use UptimeRobot to ping the service regularly.
 
+**Reference**: This setup is based on [this article](https://sergeiliski.medium.com/how-to-run-a-full-time-app-on-renders-free-tier-without-it-sleeping-bec26776d0b9) which explains how to keep Render services awake by doing actual work in health checks.
+
+The `/healthz` endpoint is specifically designed for this purpose:
+- It performs actual Redis I/O (ping) to force the service to wake up
+- It does real computation to prevent edge caching
+- It verifies service dependencies are active
+- This ensures Render doesn't consider the service "idle"
+
 ### 3.1 Sign Up for UptimeRobot
 
 1. Go to [uptimerobot.com](https://uptimerobot.com)
@@ -100,6 +108,7 @@ Render's free tier automatically spins down services after **15 minutes of inact
 - The monitor should show as **"Up"** in the dashboard
 - You can test it by clicking **"Test"** on the monitor
 - UptimeRobot will now ping your `/healthz` endpoint every 5 minutes, keeping Render from considering the service idle
+- The `/healthz` endpoint performs actual Redis I/O work, ensuring the service truly wakes up (not just edge cache hits)
 
 ## Step 4: Set Telegram Webhook
 

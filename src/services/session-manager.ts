@@ -67,6 +67,23 @@ class SessionManager {
     }
   }
 
+  /**
+   * Pings Redis to verify connection and keep it alive.
+   * Used by health checks to force actual I/O work.
+   */
+  async ping(): Promise<boolean> {
+    try {
+      if (!this.isConnected) {
+        await this.connect();
+      }
+      await this.redis.ping();
+      return true;
+    } catch (error) {
+      Logger.warn("Redis ping failed", error instanceof Error ? error : null);
+      return false;
+    }
+  }
+
   getConnectionStatus(): boolean {
     return this.isConnected;
   }

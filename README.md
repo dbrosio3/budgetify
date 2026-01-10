@@ -135,8 +135,10 @@ For zero-cost deployment on Render's free tier:
 3. **Keep it awake:**
    - Render's free tier spins down after 15 minutes of inactivity
    - Set up [UptimeRobot](https://uptimerobot.com) (free) to ping `/healthz` endpoint every 5 minutes
+   - The `/healthz` endpoint performs actual Redis I/O work to force the service to wake up (prevents edge caching)
    - This keeps the service active at $0 cost
    - See [RENDER_DEPLOYMENT.md](./RENDER_DEPLOYMENT.md) for detailed UptimeRobot setup
+   - Based on: [How to Run a Full-Time App on Render's Free Tier](https://sergeiliski.medium.com/how-to-run-a-full-time-app-on-renders-free-tier-without-it-sleeping-bec26776d0b9)
 
 **Note:** Total maintenance cost is $0/month. You only pay for AI API usage (tokens).
 
