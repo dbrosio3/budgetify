@@ -14,6 +14,7 @@ Telegram bot for processing financial transactions using AI (Google Gemini). Mig
 ## Prerequisites
 
 - [Bun](https://bun.sh) (latest version)
+- [Docker](https://www.docker.com) (for local Redis) or Redis server
 - Google Cloud Service Account with Sheets API enabled
 - Telegram Bot Token
 - Google Gemini API Key
@@ -45,8 +46,27 @@ Required variables:
 - `GOOGLE_APPLICATION_CREDENTIALS` - Path to service account JSON file
   OR
 - `GOOGLE_SERVICE_ACCOUNT_JSON` - Service account JSON as string
+- `REDIS_URL` - Redis connection URL (e.g., `redis://localhost:6379` for local)
 
-4. **Google Sheets Setup:**
+**Note:** For production, you can use [Upstash Redis](https://upstash.com) (free tier available). For local development, use Docker (see below).
+
+4. **Start Redis (for local development):**
+Using Docker Compose (recommended):
+```bash
+docker-compose up -d
+```
+
+Or using Docker directly:
+```bash
+docker run -d --name budgetify-redis -p 6379:6379 redis:7-alpine
+```
+
+Or if you have Redis installed locally:
+```bash
+redis-server
+```
+
+5. **Google Sheets Setup:**
 Your spreadsheet should have these sheets:
 - `CONFIG` - Configuration with accounts, categories, subcategories
 - `MIS_DATOS` - Personal data (name, aliases, CBU, CUIT)
@@ -54,7 +74,7 @@ Your spreadsheet should have these sheets:
 - `INGRESOS` - Income sheet
 - `TRANSFERENCIAS` - Transfers sheet
 
-5. **Run the server:**
+6. **Run the server:**
 ```bash
 bun run src/server.ts
 ```
