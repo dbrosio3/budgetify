@@ -1,5 +1,6 @@
 import { ValidationError } from "../utils/errors";
-import { TransactionResult, TransactionData } from "../types";
+import { TransactionResult, TransactionData, ConfigData } from "../types";
+import { Logger } from "../utils/logger";
 
 /**
  * Parses a date string in various formats (DD/MM/YYYY or ISO format) to a Date object
@@ -171,4 +172,110 @@ export class Validator {
       );
     }
   }
+}
+
+import { MONEDA_OPTIONS, SPLIT_OPTIONS } from "../types";
+
+/**
+ * Helper to extract text without emoji
+ */
+function extractTextWithoutEmoji(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, "")
+    .trim();
+}
+
+/**
+ * Maps a 1-indexed number to a value from an options array.
+ * Returns the value at index (num - 1), or the first option as fallback.
+ */
+function mapIndexToValue<T extends string>(
+  index: number | string | undefined,
+  options: readonly T[]
+): T {
+  if (options.length === 0) throw new Error("Options array cannot be empty");
+
+  const num = typeof index === "string" ? parseInt(index, 10) : index;
+
+  if (num === undefined || num === null || isNaN(num) || num < 1 || num > options.length) {
+    return options[0]; // Fallback to first option
+  }
+
+  return options[num - 1];
+}
+
+/**
+ * Maps numbered AI response fields to actual string values.
+ * The AI returns indices (1-indexed) for cuenta, macro_categoria, subcategoria, moneda, split.
+ * This function converts those indices back to the actual string values.
+ *
+ * @param result - The transaction result from AI (with numbered fields)
+ * @param config - The config data containing valid accounts, categories, etc.
+ * @returns The mapped transaction result with string values
+ */
+export function mapTransactionIndices(
+  result: TransactionResult,
+  config: ConfigData
+): TransactionResult {
+  const datos = { ...result.datos };
+  const macroKeys = Object.keys(config.categoriasMap);
+
+  // Map cuenta (account) - for GASTO and INGRESO
+  if (result.tipo === "GASTO" || result.tipo === "INGRESO") {
+    const cuentaIndex = datos.cuenta as unknown as number;
+    datos.cuenta = mapIndexToValue(cuentaIndex, config.cuentas);
+    Logger.log(`Mapped cuenta: ${cuentaIndex} → "${datos.cuenta}"`);
+  }
+
+  // Map macro_categoria and subcategoria - for GASTO
+  if (result.tipo === "GASTO") {
+    const macroIndex = datos.macro_categoria as unknown as number;
+    datos.macro_categoria = mapIndexToValue(macroIndex, macroKeys);
+    Logger.log(`Mapped macro_categoria: ${macroIndex} → "${datos.macro_categoria}"`);
+
+    // Get subcategories for the selected macro
+    const validSubcategorias = config.categoriasMap[datos.macro_categoria] || [];
+    const subcatIndex = datos.subcategoria as unknown as number;
+    const rawSubcat = mapIndexToValue(subcatIndex, validSubcategorias);
+    datos.subcategoria = extractTextWithoutEmoji(rawSubcat);
+    Logger.log(`Mapped subcategoria: ${subcatIndex} → "${datos.subcategoria}"`);
+
+    // Map moneda
+    const monedaIndex = datos.moneda as unknown as number;
+    datos.moneda = mapIndexToValue(monedaIndex, MONEDA_OPTIONS);
+    Logger.log(`Mapped moneda: ${monedaIndex} → "${datos.moneda}"`);
+
+    // Map split
+    const splitIndex = datos.split as unknown as number;
+    datos.split = mapIndexToValue(splitIndex, SPLIT_OPTIONS);
+    Logger.log(`Mapped split: ${splitIndex} → "${datos.split}"`);
+  }
+
+  // Map INGRESO moneda
+  if (result.tipo === "INGRESO") {
+    const monedaIndex = datos.moneda as unknown as number;
+    datos.moneda = mapIndexToValue(monedaIndex, MONEDA_OPTIONS);
+    Logger.log(`Mapped moneda: ${monedaIndex} → "${datos.moneda}"`);
+  }
+
+  // Map TRANSFERENCIA origen/destino
+  if (result.tipo === "TRANSFERENCIA") {
+    const origenIndex = datos.origen as unknown as number;
+    if (origenIndex !== undefined) {
+      datos.origen = mapIndexToValue(origenIndex, config.cuentas);
+      Logger.log(`Mapped origen: ${origenIndex} → "${datos.origen}"`);
+    }
+
+    const destinoIndex = datos.destino as unknown as number;
+    if (destinoIndex !== undefined) {
+      datos.destino = mapIndexToValue(destinoIndex, config.cuentas);
+      Logger.log(`Mapped destino: ${destinoIndex} → "${datos.destino}"`);
+    }
+  }
+
+  return {
+    ...result,
+    datos,
+  };
 }

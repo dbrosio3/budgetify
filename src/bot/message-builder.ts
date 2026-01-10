@@ -1,17 +1,29 @@
 import { TransactionResult, ConversationContext } from "../types";
 
+/**
+ * Escapes special Markdown characters to prevent Telegram parsing errors.
+ * For basic Markdown mode, these characters need escaping: _ * ` [
+ */
+function escapeMarkdown(text: string | undefined): string {
+  if (!text) return "";
+  return text.replace(/([_*`[])/g, "\\$1");
+}
+
 export class MessageBuilder {
   static buildConfirmationMessage(data: TransactionResult): string {
     let mensaje = "";
     const d = data.datos;
 
-    // Show confidence alert if exists
-    const alertaConfianza = data.alerta ? `\n\n${data.alerta}` : "";
+    // Escape markdown in AI-generated fields to prevent Telegram parsing errors
+    const alertaConfianza = data.alerta ? `\n\n${escapeMarkdown(data.alerta)}` : "";
+    const descripcion = escapeMarkdown(d.descripcion);
+    const notas = escapeMarkdown(d.notas);
+    const fuente = escapeMarkdown(d.fuente || d.descripcion);
 
     if (data.tipo === "GASTO") {
       mensaje =
         `🤔 *¿Confirmás este gasto?*\n\n` +
-        `📝 *Descripción:* ${d.descripcion}\n` +
+        `📝 *Descripción:* ${descripcion}\n` +
         `💵 *Monto:* $${d.monto} ${d.moneda || "ARS"}\n` +
         `📅 *Fecha:* ${d.fecha || "Hoy"}\n` +
         `🏦 *Cuenta:* ${d.cuenta}\n` +
@@ -19,16 +31,16 @@ export class MessageBuilder {
         `🔖 *Subcategoría:* ${d.subcategoria}\n` +
         `🔄 *Split:* ${d.split || "Solo mío"}` +
         (d.cuotas && d.cuotas > 1 ? `\n💳 *Cuotas:* ${d.cuotas} (cuota ${d.n_cuota || 1})` : "") +
-        (d.notas ? `\n📋 *Notas:* ${d.notas}` : "") +
+        (notas ? `\n📋 *Notas:* ${notas}` : "") +
         alertaConfianza;
     } else if (data.tipo === "INGRESO") {
       mensaje =
         `🤔 *¿Confirmás este ingreso?*\n\n` +
-        `💰 *Fuente:* ${d.fuente || d.descripcion}\n` +
+        `💰 *Fuente:* ${fuente}\n` +
         `💵 *Monto:* $${d.monto} ${d.moneda || "ARS"}\n` +
         `📅 *Fecha:* ${d.fecha || "Hoy"}\n` +
         `🏦 *Cuenta:* ${d.cuenta}` +
-        (d.notas ? `\n📋 *Notas:* ${d.notas}` : "") +
+        (notas ? `\n📋 *Notas:* ${notas}` : "") +
         alertaConfianza;
     } else if (data.tipo === "TRANSFERENCIA") {
       mensaje =

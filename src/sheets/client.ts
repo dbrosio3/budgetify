@@ -3,6 +3,16 @@ import { config } from "../config";
 import { Logger } from "../utils/logger";
 import { SheetsAPIError } from "../utils/errors";
 import { parseDate } from "../services/validator";
+
+/**
+ * Formats a Date object as DD/MM/YYYY string for Google Sheets
+ */
+function formatDateForSheets(date: Date): string {
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+}
 import {
   CategoryMap,
   PersonalData,
@@ -313,7 +323,7 @@ export class SheetsClient {
         requestBody: {
           values: [
             [
-              fecha,
+              formatDateForSheets(fecha),
               data.descripcion?.trim() || "",
               data.macro_categoria?.trim() || "",
               subcategoriaConEmoji,
@@ -414,7 +424,7 @@ export class SheetsClient {
 
       // Note: Don't write to column G (protected), only write A-F
       const rowData = [
-        fecha,
+        formatDateForSheets(fecha),
         (data.fuente || data.descripcion || "").trim(),
         (data.cuenta || "").trim(),
         String(parseFloat(String(data.monto || 0))),
@@ -482,7 +492,7 @@ export class SheetsClient {
 
       // ✅ FIX: Don't write to column F (protected), only write A-E
       const rowData = [
-        fecha,
+        formatDateForSheets(fecha),
         data.origen?.trim() || "",
         String(parseFloat(String(data.monto_salida || 0))),
         data.destino?.trim() || "",

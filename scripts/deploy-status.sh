@@ -7,3 +7,4 @@ export PATH="$FLYCTL_INSTALL/bin:$PATH"
 
 flyctl status -a budgetify-bot
 
+

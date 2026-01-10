@@ -8,6 +8,7 @@ import { contextManager } from "../services/context-manager";
 import { pendingOperations } from "../services/pending-operations";
 import { Logger } from "../utils/logger";
 import { UserPreferencesService } from "../services/user-preferences";
+import { mapTransactionIndices } from "../services/validator";
 
 export class MessageHandlers {
   constructor(
@@ -135,7 +136,10 @@ export class MessageHandlers {
       if (!result.datos.n_cuota) result.datos.n_cuota = 1;
     }
 
-    return result;
+    // Map numbered AI response fields to actual string values
+    const mappedResult = mapTransactionIndices(result, config);
+
+    return mappedResult;
   }
 
   async handleImageMessage(message: TelegramMessage): Promise<TransactionResult> {
@@ -204,7 +208,10 @@ export class MessageHandlers {
       result.alerta = (result.alerta || "") + `\n\n💡 ${result.razonamiento}`;
     }
 
-    return result;
+    // Map numbered AI response fields to actual string values
+    const mappedResult = mapTransactionIndices(result, config);
+
+    return mappedResult;
   }
 
   async handleAudioMessage(message: TelegramMessage): Promise<TransactionResult> {
@@ -289,7 +296,10 @@ export class MessageHandlers {
       }
     }
 
-    return result;
+    // Map numbered AI response fields to actual string values
+    const mappedResult = mapTransactionIndices(result, config);
+
+    return mappedResult;
   }
 
   /**

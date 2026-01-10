@@ -1,4 +1,29 @@
-import { CategoryMap, PersonalData, ConversationContext, TransactionResult } from "../types";
+import {
+  CategoryMap,
+  PersonalData,
+  ConversationContext,
+  TransactionResult,
+  MONEDA_OPTIONS,
+  SPLIT_OPTIONS,
+} from "../types";
+
+/**
+ * Formats a list of options as numbered choices for the AI prompt
+ * Returns: "1: Option1, 2: Option2, 3: Option3"
+ */
+function formatNumberedOptions(options: readonly string[]): string {
+  return options.map((opt, i) => `${i + 1}: ${opt}`).join(", ");
+}
+
+/**
+ * Extracts text without emoji
+ */
+function extractTextWithoutEmoji(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, "")
+    .trim();
+}
 
 export class PromptBuilder {
   static buildVisionPrompt(
@@ -9,102 +34,94 @@ export class PromptBuilder {
     categoriasMap: CategoryMap,
     misDatos: PersonalData
   ): string {
-    // Create category description
-    let descripcionCategorias =
-      "📋 CATEGORÍAS DISPONIBLES (DEBÉS USAR ALGUNA DE ESTAS OBLIGATORIAMENTE):\n";
-    for (const macro in categoriasMap) {
-      descripcionCategorias += `\n${macro}:\n`;
-      categoriasMap[macro].forEach((sub) => {
-        // Extract text without emoji for display
-        const subSinEmoji = sub
-          .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, "")
-          .trim();
-        descripcionCategorias += `  • ${subSinEmoji}\n`;
-      });
-    }
-    descripcionCategorias += "\n⚠️ REGLAS CRÍTICAS SOBRE CATEGORÍAS:\n";
-    descripcionCategorias +=
-      "1. macro_categoria: DEBÉS usar EXACTAMENTE una de las macro-categorías listadas arriba (sin emoji).\n";
-    descripcionCategorias +=
-      "2. subcategoria: DEBÉS usar EXACTAMENTE una de las subcategorías que corresponda a la macro elegida.\n";
-    descripcionCategorias +=
-      "3. NUNCA inventes categorías. NUNCA uses texto libre que no esté en la lista.\n";
-    descripcionCategorias +=
-      "4. Si ninguna de las categorías es apripiada utilizar macro-categoria: 'REGALOS/OTROS' / subcategoria: 'Otros' como default.\n";
+    // Create numbered accounts list
+    const cuentasNumeradas = formatNumberedOptions(cuentas);
 
-    return `Sos un experto en leer comprobantes de pago argentinos. 
-Analizá esta imagen y extraé TODOS los datos del ticket/factura/comprobante.
-${caption ? `Contexto adicional del usuario: "${caption}"` : ""}
+    // Create numbered categories with subcategories
+    const macroKeys = Object.keys(categoriasMap);
+    let descripcionCategorias = "📋 CATEGORÍAS (usá el NÚMERO correspondiente):\n\n";
+    descripcionCategorias += `MACRO-CATEGORÍAS: ${formatNumberedOptions(macroKeys)}\n\n`;
+    descripcionCategorias += "SUBCATEGORÍAS por macro:\n";
+    macroKeys.forEach((macro, macroIndex) => {
+      const subs = categoriasMap[macro].map((s) => extractTextWithoutEmoji(s));
+      descripcionCategorias += `  Si macro=${macroIndex + 1} (${macro}): ${formatNumberedOptions(subs)}\n`;
+    });
+
+    // Numbered moneda and split options
+    const monedaNumerada = formatNumberedOptions(MONEDA_OPTIONS);
+    const splitNumerado = formatNumberedOptions(SPLIT_OPTIONS);
+
+    return `Analizá esta imagen de comprobante y extraé los datos.
+${caption ? `Contexto del usuario: "${caption}"` : ""}
 Fecha actual: ${new Date().toLocaleDateString("es-AR")}
 
-Cuentas válidas: ${cuentas.join(", ")}
+🏦 CUENTAS: ${cuentasNumeradas}
 
 ${descripcionCategorias}
 
-🔑 DATOS DEL USUARIO (para identificar si es ingreso o egreso):
+💰 MONEDA: ${monedaNumerada}
+🔄 SPLIT: ${splitNumerado}
+
+🔑 MIS DATOS (para determinar si es ingreso/egreso):
 - Nombre: ${misDatos.nombre}
 - Alias: ${misDatos.alias.join(", ")}
 ${misDatos.cbu ? `- CBU/CVU: ${misDatos.cbu}` : ""}
-${misDatos.cuit ? `- CUIT/CUIL: ${misDatos.cuit}` : ""}
 
-Respondé ÚNICAMENTE un JSON (sin markdown) con:
+⚠️ REGLA CRÍTICA: Los campos cuenta, macro_categoria, subcategoria, moneda, split DEBEN ser NÚMEROS ENTEROS.
+NUNCA uses null, strings, ni texto. Si no estás seguro, usá 1 como default.
+
+📋 EJEMPLO DE RESPUESTA CORRECTA:
+{
+  "tipo": "GASTO",
+  "datos": {
+    "fecha": "07/01/2026",
+    "descripcion": "Supermercado Carrefour",
+    "macro_categoria": 3,
+    "subcategoria": 2,
+    "cuenta": 1,
+    "monto": 15000,
+    "moneda": 1,
+    "cuotas": 1,
+    "n_cuota": 1,
+    "split": 2,
+    "notas": "Ticket #12345"
+  },
+  "confianza": "ALTA",
+  "campos_faltantes": [],
+  "razonamiento": "Compra en supermercado pagada con tarjeta"
+}
+
+❌ INCORRECTO: "cuenta": null, "macro_categoria": "ALIMENTACIÓN", "moneda": "USD"
+✅ CORRECTO: "cuenta": 1, "macro_categoria": 3, "moneda": 2
+
+Respondé SOLO con JSON válido (sin markdown):
 {
   "tipo": "GASTO" | "INGRESO" | "TRANSFERENCIA",
   "datos": {
-    "fecha": "fecha del comprobante (formato DD/MM/YYYY o ISO YYYY-MM-DD)",
-    "descripcion": "comercio o concepto (o nombre de quien transfiere si es ingreso)",
-    "macro_categoria": "UNA de las macro-categorías listadas arriba (EXACTAMENTE como aparece, sin emoji). NUNCA uses texto libre.",
-    "subcategoria": "UNA de las subcategorías listadas para la macro elegida (texto SIN emoji). NUNCA uses texto libre.",
-    "cuenta": "cuenta usada (si está en el comprobante, sino inferila)",
-    "monto": número sin símbolos,
-    "moneda": "ARS" o "USD" o "EUR",
-    "cuotas": número de cuotas si aplica,
-    "n_cuota": número de cuota actual si aplica,
-    "split": "Solo mío" o "Compartido 50/50" (solo para GASTO),
-    "notas": "número de transacción, código, o info relevante",
-    "fuente": "solo para INGRESO: de quién viene el dinero",
-    "origen": "solo para TRANSFERENCIA: cuenta origen",
-    "destino": "solo para TRANSFERENCIA: cuenta destino",
-    "monto_salida": "solo para TRANSFERENCIA",
-    "monto_entrada": "solo para TRANSFERENCIA"
+    "fecha": "DD/MM/YYYY",
+    "descripcion": "texto",
+    "macro_categoria": INTEGER,
+    "subcategoria": INTEGER,
+    "cuenta": INTEGER,
+    "monto": NUMBER,
+    "moneda": INTEGER (1-3),
+    "cuotas": INTEGER,
+    "n_cuota": INTEGER,
+    "split": INTEGER (1-2),
+    "notas": "texto"
   },
   "confianza": "ALTA" | "MEDIA" | "BAJA",
-  "campos_faltantes": ["lista de campos que no pudiste identificar"],
-  "razonamiento": "explicá brevemente por qué determinaste que es GASTO/INGRESO/TRANSFERENCIA"
+  "campos_faltantes": [],
+  "razonamiento": "texto corto"
 }
 
-🎯 REGLAS PARA DETERMINAR TIPO:
-
-**INGRESO** = El dinero ENTRA a mis cuentas:
-- Mi nombre/alias/CBU aparece como DESTINATARIO/RECEPTOR
-- El comprobante dice "Recibiste", "Te transfirieron", "Ingreso", "Acreditación"
-- Aparezco como vendedor en una factura
-- Ejemplos: transferencias recibidas, cobro de sueldo, reintegros, ventas
-
-**GASTO** = El dinero SALE de mis cuentas:
-- Mi nombre/alias/CBU aparece como ORIGEN/PAGADOR
-- El comprobante dice "Pagaste", "Compraste", "Débito", "Enviaste"
-- Tickets de compra en comercios
-- Facturas donde soy el cliente
-- Ejemplos: compras, pagos de servicios, transferencias enviadas
-
-**TRANSFERENCIA** = Movimiento entre MIS cuentas:
-- Tanto origen como destino son cuentas mías
-- Ej: de Mercado Pago a Banco
-
-⚠️ Si NO podés determinar con certeza si es ingreso o gasto (ej: no aparece mi nombre en ningún lado), 
-asumí que es GASTO por defecto, pero poné confianza "MEDIA" o "BAJA".
-
-REGLAS CRÍTICAS DE FORMATO:
-- Si el monto tiene punto como separador de miles, eliminalo (ej: 1.500 → 1500)
-- Si tiene coma decimal, convertí a punto (ej: 1.234,56 → 1234.56)
-- La fecha debe ser la del comprobante, NO la de hoy
-- Para split: compras en supermercado/restaurante → "Compartido 50/50"
-- Para split: servicios personales/ropa/individual → "Solo mío"
-- Si no hay cuotas, poné 1 en ambos campos
-- Para INGRESO usa el campo "fuente" en lugar de "descripcion" para el concepto
-- IMPORTANTE: macro_categoria NO debe incluir emoji (ej: "ALIMENTACIÓN", no "🍽️ ALIMENTACIÓN")
-- La subcategoria debe corresponder a la macro_categoria elegida`;
+REGLAS:
+- GASTO = dinero sale de mis cuentas (compras, pagos)
+- INGRESO = dinero entra a mis cuentas (cobros, transferencias recibidas)
+- TRANSFERENCIA = movimiento entre mis propias cuentas
+- Monto: sin separadores de miles, punto decimal (1234.56)
+- Si no hay cuotas, poné cuotas=1 y n_cuota=1
+- Split: 1=Solo mío, 2=Compartido 50/50`;
   }
 
   static buildTextPrompt(
@@ -114,33 +131,22 @@ REGLAS CRÍTICAS DE FORMATO:
     contextoPrevio: ConversationContext | null,
     operacionPendiente: TransactionResult | null = null
   ): string {
-    // Create category description
-    let descripcionCategorias = "📋 CATEGORÍAS DISPONIBLES (DEBÉS USAR SOLO ESTAS):\n";
-    for (const macro in categoriasMap) {
-      descripcionCategorias += `\n${macro}:\n`;
-      categoriasMap[macro].forEach((sub) => {
-        // Extract text without emoji for display
-        const subSinEmoji = sub
-          .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, "")
-          .trim();
-        descripcionCategorias += `  • ${subSinEmoji}\n`;
-      });
-    }
-    descripcionCategorias += "\n⚠️ REGLAS CRÍTICAS SOBRE CATEGORÍAS:\n";
-    descripcionCategorias +=
-      "1. macro_categoria: DEBÉS usar EXACTAMENTE una de las macro-categorías listadas arriba (sin emoji).\n";
-    descripcionCategorias +=
-      "2. subcategoria: DEBÉS usar EXACTAMENTE una de las subcategorías que corresponda a la macro elegida.\n";
-    descripcionCategorias +=
-      "3. Si el usuario dice algo como 'regalo', 'otros', o cualquier texto, NO lo uses directamente.\n";
-    descripcionCategorias +=
-      "   En su lugar, buscá en la lista de categorías disponibles y elegí la MÁS APROPIADA.\n";
-    descripcionCategorias +=
-      "4. Hacé coincidencias parciales inteligentes: si el usuario dice 'peluquería', matcheá con 'Peluquería/Barbería' de la lista.\n";
-    descripcionCategorias +=
-      "5. Si no encontrás una categoría apropiada, usá la primera subcategoría de la macro más cercana.\n";
-    descripcionCategorias +=
-      "6. NUNCA inventes categorías. NUNCA uses el texto literal que el usuario menciona si no está en la lista.\n";
+    // Create numbered accounts list
+    const cuentasNumeradas = formatNumberedOptions(cuentas);
+
+    // Create numbered categories with subcategories
+    const macroKeys = Object.keys(categoriasMap);
+    let descripcionCategorias = "📋 CATEGORÍAS (respondé con NÚMEROS):\n\n";
+    descripcionCategorias += `MACRO-CATEGORÍAS: ${formatNumberedOptions(macroKeys)}\n\n`;
+    descripcionCategorias += "SUBCATEGORÍAS por macro:\n";
+    macroKeys.forEach((macro, macroIndex) => {
+      const subs = categoriasMap[macro].map((s) => extractTextWithoutEmoji(s));
+      descripcionCategorias += `  Si macro=${macroIndex + 1} (${macro}): ${formatNumberedOptions(subs)}\n`;
+    });
+
+    // Numbered moneda and split options
+    const monedaNumerada = formatNumberedOptions(MONEDA_OPTIONS);
+    const splitNumerado = formatNumberedOptions(SPLIT_OPTIONS);
 
     // Build context text if exists
     let contextoTexto = "";
@@ -197,57 +203,67 @@ REGLAS CRÍTICAS DE FORMATO:
         `Si el mensaje es claramente un NUEVO gasto/ingreso/transferencia, ignorá el contexto y creá uno nuevo.`;
     }
 
-    return `Eres un extractor de datos financieros. Tu única tarea es devolver JSON válido. NUNCA respondas con texto natural.
+    return `Extraé datos financieros del mensaje. Respondé SOLO con JSON válido.
 
-Usuario dice: "${text}". Hoy es ${new Date().toLocaleDateString("es-AR")}.
+Usuario dice: "${text}"
+Fecha actual: ${new Date().toLocaleDateString("es-AR")}
 
-Cuentas disponibles: ${cuentas.join(", ")}
+🏦 CUENTAS: ${cuentasNumeradas}
 
 ${descripcionCategorias}
 
+💰 MONEDA: ${monedaNumerada}
+🔄 SPLIT: ${splitNumerado}
 ${contextoTexto}
 
-REGLAS CRÍTICAS:
-1. SIEMPRE responde SOLO con JSON válido. NUNCA agregues texto antes o después del JSON.
-2. Si el mensaje NO contiene una transacción completa (ej: "espera", "te confirmo", "déjame pensar"), devolvé un JSON con los campos que puedas inferir y deja los demás vacíos o con valores por defecto.
-3. Si el usuario está modificando el registro anterior (ej: "era compartido", "cambia la fecha a ayer"), devolvé los datos del registro anterior con las modificaciones solicitadas y poné "usa_contexto": true.
+⚠️ REGLA CRÍTICA: Los campos cuenta, macro_categoria, subcategoria, moneda, split DEBEN ser NÚMEROS ENTEROS.
+NUNCA uses null, strings, ni texto. Si no estás seguro, usá 1 como default.
 
-Formato JSON requerido (responde SOLO esto, sin texto adicional):
+📋 EJEMPLO DE RESPUESTA CORRECTA:
+{
+  "tipo": "GASTO",
+  "datos": {
+    "fecha": "10/01/2026",
+    "descripcion": "Almuerzo con amigos",
+    "macro_categoria": 1,
+    "subcategoria": 3,
+    "cuenta": 2,
+    "monto": 5000,
+    "moneda": 1,
+    "cuotas": 1,
+    "n_cuota": 1,
+    "split": 2,
+    "notas": ""
+  },
+  "usa_contexto": false
+}
+
+❌ INCORRECTO: "cuenta": null, "macro_categoria": "ALIMENTACIÓN", "split": "Solo mío"
+✅ CORRECTO: "cuenta": 1, "macro_categoria": 3, "split": 1
+
+Respondé SOLO con JSON (sin markdown ni texto adicional):
 {
   "tipo": "GASTO" | "INGRESO" | "TRANSFERENCIA",
   "datos": {
-    "fecha": "DD/MM/YYYY o YYYY-MM-DD (formato ISO)" o "" si no se puede inferir,
-    "descripcion": "..." o "" si no está claro,
-    "macro_categoria": "UNA de las macro-categorías listadas arriba (EXACTAMENTE como aparece, sin emoji). NUNCA uses texto libre del usuario.",
-    "subcategoria": "UNA de las subcategorías listadas para la macro elegida (texto SIN emoji). NUNCA uses texto libre del usuario. Si el usuario menciona algo, buscá la subcategoría más apropiada en la lista.",
-    "cuenta": "..." o "" si no está claro,
-    "monto": número o 0 si no está claro,
-    "cuotas": 1 si no aplica,
-    "n_cuota": 1 si no aplica,
-    "moneda": "ARS" | "USD" | "EUR" (default: "ARS"),
-    "split": "Solo mío" | "Compartido 50/50" (default: "Solo mío"),
-    "link": "",
+    "fecha": "DD/MM/YYYY" o "",
+    "descripcion": "texto",
+    "macro_categoria": INTEGER,
+    "subcategoria": INTEGER,
+    "cuenta": INTEGER,
+    "monto": NUMBER,
+    "moneda": INTEGER (1=ARS, 2=USD, 3=EUR),
+    "cuotas": INTEGER,
+    "n_cuota": INTEGER,
+    "split": INTEGER (1=Solo mío, 2=Compartido),
     "notas": ""
   },
   "usa_contexto": true/false
 }
 
-Si es GASTO: Completa todos los campos posibles. Si faltan datos críticos (monto, descripcion), usa valores por defecto razonables.
-🚨 CRÍTICO para CATEGORÍAS:
-- macro_categoria: DEBÉS elegir EXACTAMENTE una de las macro-categorías listadas arriba. Si el usuario dice "regalo" o "otros", buscá en la lista la categoría más apropiada (probablemente "OTROS" si existe, o la primera disponible).
-- subcategoria: DEBÉS elegir EXACTAMENTE una de las subcategorías que corresponda a la macro elegida. Si el usuario menciona algo que no está en la lista, hacé coincidencias parciales inteligentes (ej: 'peluquería' → 'Peluquería/Barbería', 'super' → 'Supermercado').
-- NUNCA uses el texto literal que el usuario menciona si no está en la lista de categorías disponibles.
-- Si seleccionaste una macro_categoria, SIEMPRE debés seleccionar también una subcategoria correspondiente de esa macro.
-Si es INGRESO: usa {fecha, fuente, cuenta, monto, moneda, cotizacion}.
-Si es TRANSFERENCIA: usa {fecha, origen, destino, monto_salida, monto_entrada}.
-
-⚠️ CRÍTICO: Si hay una OPERACIÓN PENDIENTE arriba, el usuario está MODIFICÁNDOLA. 
-- MANTENÉ todos los campos que el usuario NO menciona explícitamente
-- Si el usuario dice "pone categoría X", mantené el monto, cuenta, fecha, descripción, etc. Solo cambiá la categoría
-- Si el usuario dice "cambia la descripción a Y", mantené todo lo demás (monto, cuenta, categoría, etc.), solo cambiá la descripción
-- NUNCA pongas monto en 0 o campos vacíos a menos que el usuario explícitamente lo pida
-- Si el usuario dice "poné categoría TRANSPORTE, Combustible y en descripción poné que no me acuerdo", mantené el monto original y solo cambiá categoría y descripción
-
-IMPORTANTE: Responde SOLO con el JSON. No agregues explicaciones, comentarios ni texto adicional.`;
+REGLAS:
+- Si hay OPERACIÓN PENDIENTE arriba, el usuario la está modificando. Mantené campos no mencionados.
+- Si el usuario menciona categoría por nombre, buscá el número en la lista.
+- INGRESO: usá fuente en vez de descripcion, agregá cotizacion si moneda != ARS
+- TRANSFERENCIA: usá origen, destino (números de cuenta), monto_salida, monto_entrada`;
   }
 }

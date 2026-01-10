@@ -8,3 +8,4 @@ export PATH="$FLYCTL_INSTALL/bin:$PATH"
 # Execute flyctl command with all arguments
 flyctl "$@"
 
+

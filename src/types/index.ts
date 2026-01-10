@@ -46,6 +46,13 @@ export interface TelegramCallbackQuery {
 
 // Transaction Types
 export type TransactionType = "GASTO" | "INGRESO" | "TRANSFERENCIA";
+export type Moneda = "ARS" | "USD" | "EUR";
+export type Split = "Solo mío" | "Compartido 50/50";
+export type Confianza = "ALTA" | "MEDIA" | "BAJA";
+
+// Valid options arrays (use these for prompts and validation)
+export const MONEDA_OPTIONS: readonly Moneda[] = ["ARS", "USD", "EUR"] as const;
+export const SPLIT_OPTIONS: readonly Split[] = ["Solo mío", "Compartido 50/50"] as const;
 
 export interface TransactionData {
   fecha?: string;
@@ -54,10 +61,10 @@ export interface TransactionData {
   subcategoria?: string;
   cuenta?: string;
   monto?: number;
-  moneda?: "ARS" | "USD" | "EUR";
+  moneda?: Moneda;
   cuotas?: number;
   n_cuota?: number;
-  split?: "Solo mío" | "Compartido 50/50";
+  split?: Split;
   link?: string;
   notas?: string;
   // INGRESO specific
@@ -74,7 +81,7 @@ export interface TransactionData {
 export interface TransactionResult {
   tipo: TransactionType;
   datos: TransactionData;
-  confianza?: "ALTA" | "MEDIA" | "BAJA";
+  confianza?: Confianza;
   campos_faltantes?: string[];
   razonamiento?: string;
   alerta?: string;
