@@ -3,6 +3,8 @@ import {
   PersonalData,
   ConversationContext,
   TransactionResult,
+  ConversationMessage,
+  ClarificationQuestion,
   MONEDA_OPTIONS,
   SPLIT_OPTIONS,
 } from "../types";
@@ -269,5 +271,160 @@ REGLAS:
 - Fecha: "hoy" → usa fecha de hoy, "ayer" → resta 1 día, fecha específica → usá esa, sin fecha → ""
 - INGRESO: usá fuente en vez de descripcion, agregá cotizacion si moneda != ARS
 - TRANSFERENCIA: usá origen, destino (números de cuenta), monto_salida, monto_entrada`;
+  }
+
+  static buildConversationalPrompt(
+    messages: ConversationMessage[],
+    currentInput: string,
+    cuentas: string[],
+    categoriasMap: CategoryMap,
+    pendingQuestions?: ClarificationQuestion[],
+    partialTransaction?: Partial<TransactionResult>
+  ): string {
+    // Create numbered accounts list
+    const cuentasNumeradas = formatNumberedOptions(cuentas);
+
+    // Create numbered categories with subcategories
+    const macroKeys = Object.keys(categoriasMap);
+    let descripcionCategorias = "📋 CATEGORÍAS (respondé con NÚMEROS):\n\n";
+    descripcionCategorias += `MACRO-CATEGORÍAS: ${formatNumberedOptions(macroKeys)}\n\n`;
+    descripcionCategorias += "SUBCATEGORÍAS por macro:\n";
+    macroKeys.forEach((macro, macroIndex) => {
+      const subs = categoriasMap[macro].map((s) => extractTextWithoutEmoji(s));
+      descripcionCategorias += `  Si macro=${macroIndex + 1} (${macro}): ${formatNumberedOptions(subs)}\n`;
+    });
+
+    // Numbered moneda and split options
+    const monedaNumerada = formatNumberedOptions(MONEDA_OPTIONS);
+    const splitNumerado = formatNumberedOptions(SPLIT_OPTIONS);
+
+    // Build conversation history
+    const historyText =
+      messages.length > 0
+        ? messages
+            .slice(-10) // Keep last 10 messages for context
+            .map((m) => `[${m.role.toUpperCase()}]: ${m.content}`)
+            .join("\n")
+        : "(Sin historial previo)";
+
+    // Build pending questions context
+    let pendingQuestionsText = "";
+    if (pendingQuestions && pendingQuestions.length > 0) {
+      pendingQuestionsText =
+        "\n\n⚠️ PREGUNTAS PENDIENTES QUE EL USUARIO PODRÍA ESTAR RESPONDIENDO:\n" +
+        pendingQuestions.map((q) => `- ${q.field}: "${q.questionText}"`).join("\n") +
+        "\n\nSi el mensaje del usuario parece responder alguna de estas preguntas, " +
+        "integrá la respuesta en la transacción.";
+    }
+
+    // Build partial transaction context
+    let partialTransactionText = "";
+    if (partialTransaction) {
+      partialTransactionText =
+        "\n\n📝 TRANSACCIÓN EN CONSTRUCCIÓN:\n" +
+        `Tipo: ${partialTransaction.tipo || "(no definido)"}\n` +
+        `Datos parciales: ${JSON.stringify(partialTransaction.datos || {}, null, 2)}\n` +
+        "\nIntegrá la nueva información del usuario con estos datos.";
+    }
+
+    return `Sos un asistente financiero conversacional. Tu objetivo es ayudar al usuario a registrar transacciones.
+
+HISTORIAL DE CONVERSACIÓN:
+${historyText}
+
+MENSAJE ACTUAL DEL USUARIO: "${currentInput}"
+Fecha de hoy: ${new Date().toLocaleDateString("es-AR")}
+
+🏦 CUENTAS DISPONIBLES: ${cuentasNumeradas}
+
+${descripcionCategorias}
+
+💰 MONEDA: ${monedaNumerada}
+🔄 SPLIT: ${splitNumerado}
+${pendingQuestionsText}
+${partialTransactionText}
+
+📋 INSTRUCCIONES DE RESPUESTA:
+
+Respondé con JSON en UNO de estos formatos:
+
+FORMATO 1 - Transacción completa (tenés confianza ALTA en todos los campos críticos):
+{
+  "responseType": "transaction",
+  "transaction": {
+    "tipo": "GASTO" | "INGRESO" | "TRANSFERENCIA",
+    "datos": {
+      "fecha": "DD/MM/YYYY",
+      "descripcion": "texto",
+      "macro_categoria": INTEGER,
+      "subcategoria": INTEGER,
+      "cuenta": INTEGER,
+      "monto": NUMBER,
+      "moneda": INTEGER,
+      "cuotas": 1,
+      "n_cuota": 1,
+      "split": INTEGER
+    },
+    "confianza": "ALTA"
+  }
+}
+
+FORMATO 2 - Necesitás clarificación (falta información crítica como monto, cuenta, o categoría):
+{
+  "responseType": "clarification",
+  "partialTransaction": {
+    "tipo": "GASTO",
+    "datos": { /* campos que sí pudiste identificar */ }
+  },
+  "message": "Entendido! [resumen de lo que entendiste]. Necesito algunos datos:",
+  "questions": [
+    {
+      "field": "cuenta",
+      "questionText": "¿Desde qué cuenta?",
+      "questionType": "select",
+      "options": ["Mercado Pago", "Banco Santander", "Efectivo"],
+      "confidence": "BAJA"
+    },
+    {
+      "field": "monto",
+      "questionText": "¿Cuál fue el monto?",
+      "questionType": "text",
+      "confidence": "BAJA"
+    }
+  ]
+}
+
+FORMATO 3 - Error o no entendiste:
+{
+  "responseType": "error",
+  "errorMessage": "No pude entender tu mensaje",
+  "suggestions": ["Intenta decir algo como 'Gasté 500 en supermercado'"]
+}
+
+🎯 REGLAS CRÍTICAS:
+
+1. CUÁNDO PEDIR CLARIFICACIÓN:
+   - Si falta el MONTO → SIEMPRE pedir clarificación
+   - Si falta la CUENTA y hay múltiples opciones → pedir clarificación
+   - Si no está claro si es GASTO, INGRESO, o TRANSFERENCIA → pedir clarificación
+   - Si la categoría es muy ambigua → pedir clarificación
+
+2. CUÁNDO DEVOLVER TRANSACCIÓN:
+   - Si tenés monto, tipo, y podés inferir razonablemente cuenta y categoría → transacción
+   - Si el usuario está respondiendo preguntas pendientes y ahora tenés toda la info → transacción
+
+3. PREGUNTAS:
+   - Máximo 3 preguntas por respuesta
+   - Usá questionType: "select" para campos con opciones fijas (cuenta, categoría)
+   - Usá questionType: "text" para campos abiertos (monto, descripción)
+   - Las options de "select" deben ser los NOMBRES legibles, no números
+
+4. CAMPOS NUMÉRICOS en datos de transacción:
+   - cuenta, macro_categoria, subcategoria, moneda, split DEBEN ser INTEGERS (1, 2, 3...)
+   - Nunca uses null, strings, ni texto para estos campos
+
+5. El campo "message" en clarification debe ser amigable y en español rioplatense.
+
+Respondé SOLO con JSON válido (sin markdown ni texto adicional):`;
   }
 }

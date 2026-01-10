@@ -1,4 +1,10 @@
-import { TelegramMessage, TransactionResult } from "../types";
+import {
+  TelegramMessage,
+  TransactionResult,
+  AIResponse,
+  ConversationMessage,
+  ClarificationQuestion,
+} from "../types";
 import { AIClientManager } from "../ai/client";
 import { PromptBuilder } from "../ai/prompts";
 import { SheetsClient } from "../sheets/client";
@@ -9,6 +15,7 @@ import { pendingOperations } from "../services/pending-operations";
 import { Logger } from "../utils/logger";
 import { UserPreferencesService } from "../services/user-preferences";
 import { mapTransactionIndices } from "../services/validator";
+import { ResponseParser } from "../services/response-parser";
 
 export class MessageHandlers {
   constructor(
@@ -318,6 +325,89 @@ export class MessageHandlers {
     const mappedResult = mapTransactionIndices(result, config);
 
     return mappedResult;
+  }
+
+  /**
+   * Handles a message using the conversational flow with session context.
+   * Returns an AIResponse that can be a transaction, clarification, or error.
+   */
+  async handleConversationalMessage(
+    text: string,
+    chatId: number,
+    conversationHistory: ConversationMessage[],
+    pendingQuestions?: ClarificationQuestion[],
+    partialTransaction?: Partial<TransactionResult>
+  ): Promise<AIResponse> {
+    // Get config
+    const config = await this.sheetsClient.getConfig();
+
+    // Build conversational prompt
+    const prompt = PromptBuilder.buildConversationalPrompt(
+      conversationHistory,
+      text,
+      config.cuentas,
+      config.categoriasMap,
+      pendingQuestions,
+      partialTransaction
+    );
+
+    // Get user's preferred AI provider
+    const userProvider = await this.userPreferences.getAIProvider(chatId);
+    const aiClient = this.aiClientManager.getClient(userProvider);
+
+    // Call AI
+    const response = await aiClient.generateContent(prompt);
+    Logger.log(`Conversational AI response (${response.length} chars)`);
+
+    // Parse response using the new response parser
+    const parsed = ResponseParser.parse(response);
+
+    // If it's a transaction response, map indices to actual values
+    if (parsed.responseType === "transaction") {
+      parsed.transaction = mapTransactionIndices(parsed.transaction, config);
+    }
+
+    // If it's a clarification, inject the actual account/category names into options
+    if (parsed.responseType === "clarification" && parsed.questions) {
+      parsed.questions = this.enrichQuestionOptions(parsed.questions, config);
+    }
+
+    return parsed;
+  }
+
+  /**
+   * Enriches clarification question options with actual config values
+   */
+  private enrichQuestionOptions(
+    questions: ClarificationQuestion[],
+    config: { cuentas: string[]; categoriasMap: import("../types").CategoryMap }
+  ): ClarificationQuestion[] {
+    return questions.map((q) => {
+      if (q.questionType === "select" && (!q.options || q.options.length === 0)) {
+        switch (q.field) {
+          case "cuenta":
+          case "origen":
+          case "destino":
+            q.options = config.cuentas;
+            break;
+          case "macro_categoria":
+            q.options = Object.keys(config.categoriasMap);
+            break;
+          case "subcategoria":
+            // If we have a macro category in the partial transaction, use its subcategories
+            // Otherwise use all subcategories
+            q.options = Object.values(config.categoriasMap).flat();
+            break;
+          case "moneda":
+            q.options = ["ARS", "USD", "EUR"];
+            break;
+          case "split":
+            q.options = ["Solo mío", "Compartido 50/50"];
+            break;
+        }
+      }
+      return q;
+    });
   }
 
   /**

@@ -263,3 +263,74 @@ export interface GoogleSheetsSpreadsheet {
   };
   sheets?: GoogleSheetsSheet[];
 }
+
+// Session-Based Conversation Types
+
+export type SessionState =
+  | "idle"
+  | "awaiting_clarification"
+  | "awaiting_confirmation"
+  | "processing";
+
+export type QuestionType = "select" | "text";
+
+export interface ClarificationQuestion {
+  id: string;
+  field: keyof TransactionData | "tipo";
+  questionText: string;
+  questionType: QuestionType;
+  options?: string[];
+  currentValue?: string | number;
+  confidence: Confianza;
+}
+
+export interface ConversationMessage {
+  id: string;
+  timestamp: number;
+  role: "user" | "assistant";
+  content: string;
+  messageType?: "text" | "image" | "audio";
+  attachments?: {
+    transcription?: string;
+    imageAnalysis?: string;
+  };
+}
+
+// AI Response Discriminated Union
+export interface AITransactionResponse {
+  responseType: "transaction";
+  transaction: TransactionResult;
+  questions?: ClarificationQuestion[];
+}
+
+export interface AIClarificationResponse {
+  responseType: "clarification";
+  partialTransaction?: Partial<TransactionResult>;
+  questions: ClarificationQuestion[];
+  message: string;
+}
+
+export interface AIErrorResponse {
+  responseType: "error";
+  errorMessage: string;
+  suggestions?: string[];
+}
+
+export type AIResponse =
+  | AITransactionResponse
+  | AIClarificationResponse
+  | AIErrorResponse;
+
+export interface ConversationSession {
+  sessionId: string;
+  chatId: number;
+  state: SessionState;
+  createdAt: number;
+  updatedAt: number;
+  expiresAt: number;
+  messages: ConversationMessage[];
+  currentTransaction?: Partial<TransactionResult>;
+  pendingQuestions?: ClarificationQuestion[];
+  lastQuestionMessageId?: number;
+  lastOperationId?: string;
+}

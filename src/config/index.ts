@@ -67,3 +67,10 @@ for (const varName of requiredVars) {
     throw new Error(`Missing required environment variable: ${varName}`);
   }
 }
+
+// Validate Redis URL for session management
+if (!process.env.REDIS_URL) {
+  throw new Error(
+    "Missing required environment variable: REDIS_URL (required for session management)"
+  );
+}

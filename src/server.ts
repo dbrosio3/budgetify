@@ -11,6 +11,8 @@ import { ImageProcessor } from "./services/image-processor";
 import { AudioProcessor } from "./services/audio-processor";
 import { pendingOperations } from "./services/pending-operations";
 import { contextManager } from "./services/context-manager";
+import { sessionManager } from "./services/session-manager";
+import { ConversationHandler } from "./services/conversation-handler";
 import { MessageBuilder } from "./bot/message-builder";
 import { initializeUserPreferences } from "./services/user-preferences";
 
@@ -37,6 +39,10 @@ const messageHandlers = new MessageHandlers(
   audioProcessor
 );
 const callbackHandlers = new CallbackHandlers(telegramClient, sheetsClient);
+const conversationHandler = new ConversationHandler(messageHandlers);
+
+// Wire up conversation handler to callback handlers
+callbackHandlers.setConversationHandler(conversationHandler);
 
 // Helper to check if result is modifying pending operation
 function isModifyingPending(result: TransactionResult, chatId: number): boolean {
@@ -140,7 +146,20 @@ app.post("/webhook", async (req: Request, res: Response) => {
 
     // Handle commands
     if (message.text) {
+      if (message.text.startsWith("/exit")) {
+        // Terminate session explicitly
+        await sessionManager.deleteSession(chatId);
+        contextManager.clearContext(chatId);
+        await telegramClient.sendMessage(
+          chatId,
+          "👋 *Sesión terminada*\n\nPodés empezar de nuevo cuando quieras."
+        );
+        res.status(200).send("OK");
+        return;
+      }
+
       if (message.text.startsWith("/nuevo") || message.text.startsWith("/reset")) {
+        await sessionManager.deleteSession(chatId);
         contextManager.clearContext(chatId);
         await telegramClient.sendMessage(
           chatId,
@@ -397,15 +416,44 @@ app.post("/webhook", async (req: Request, res: Response) => {
 
 // Start server
 const PORT = config.server.port;
-app.listen(PORT, () => {
-  Logger.log(`Server running on port ${PORT}`);
-  Logger.log(`Webhook URL: ${config.telegram.webhookUrl}/webhook`);
-  Logger.log(`Health check endpoint: /healthz (ping this to keep app alive)`);
+
+async function startServer() {
+  try {
+    // Connect to Redis
+    Logger.log("Connecting to Redis...");
+    await sessionManager.connect();
+    Logger.log("Redis connected successfully");
+
+    // Start Express server
+    app.listen(PORT, () => {
+      Logger.log(`Server running on port ${PORT}`);
+      Logger.log(`Webhook URL: ${config.telegram.webhookUrl}/webhook`);
+      Logger.log(`Health check endpoint: /healthz (ping this to keep app alive)`);
+    });
+
+    // Set webhook on startup (optional, can be done manually)
+    if (config.telegram.webhookUrl) {
+      telegramClient.setWebhook(`${config.telegram.webhookUrl}/webhook`).catch((error: unknown) => {
+        Logger.error("Failed to set webhook", error instanceof Error ? error : null);
+      });
+    }
+  } catch (error) {
+    Logger.error("Failed to start server", error);
+    process.exit(1);
+  }
+}
+
+// Handle graceful shutdown
+process.on("SIGTERM", async () => {
+  Logger.log("SIGTERM received, shutting down...");
+  await sessionManager.disconnect();
+  process.exit(0);
 });
 
-// Set webhook on startup (optional, can be done manually)
-if (config.telegram.webhookUrl) {
-  telegramClient.setWebhook(`${config.telegram.webhookUrl}/webhook`).catch((error: unknown) => {
-    Logger.error("Failed to set webhook", error instanceof Error ? error : null);
-  });
-}
+process.on("SIGINT", async () => {
+  Logger.log("SIGINT received, shutting down...");
+  await sessionManager.disconnect();
+  process.exit(0);
+});
+
+void startServer();
