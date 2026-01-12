@@ -5,6 +5,7 @@ dist/
 *.log
 .DS_Store
 *.service-account-key.json
+budgetify-service-account.json
 coverage/
 .vscode/
 .idea/
