@@ -142,6 +142,29 @@ For zero-cost deployment on Render's free tier:
 
 **Note:** Total maintenance cost is $0/month. You only pay for AI API usage (tokens).
 
+## Deployment to Northflank (Free Tier - Recommended)
+
+Northflank's free tier **does not sleep**, so no keep-alive pings needed!
+
+1. **Follow the detailed guide**: See [NORTHFLANK_DEPLOYMENT.md](./docs/NORTHFLANK_DEPLOYMENT.md) for complete step-by-step instructions.
+
+2. **Quick setup:**
+   - Push code to GitHub/GitLab/Bitbucket
+   - Create new service in [Northflank dashboard](https://app.northflank.com)
+   - Select "Build and deploy a Git repo"
+   - Choose **Dockerfile** as build type (your project already has one)
+   - Set environment variables
+   - Deploy
+
+3. **Advantages:**
+   - ✅ No sleep - Service stays awake 24/7
+   - ✅ No need for UptimeRobot
+   - ✅ Automatic deployments on git push
+   - ✅ Built-in health checks
+   - ✅ Free SSL/HTTPS
+
+**Note:** Total maintenance cost is $0/month. You only pay for AI API usage (tokens).
+
 ## Project Structure
 
 ```
