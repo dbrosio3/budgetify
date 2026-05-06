@@ -14,7 +14,7 @@ export class ResponseParser {
     const cleaned = this.cleanResponse(rawResponse);
 
     try {
-      const parsed = JSON.parse(cleaned);
+      const parsed = JSON.parse(cleaned) as unknown;
       return this.validateAndNormalize(parsed);
     } catch {
       Logger.error("Failed to parse AI response", rawResponse);

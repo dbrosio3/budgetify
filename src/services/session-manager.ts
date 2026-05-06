@@ -18,7 +18,11 @@ class SessionManager {
   private isConnected: boolean = false;
 
   constructor() {
-    this.redis = new Redis(config.redis.url, {
+    this.redis = this.createRedisClient();
+  }
+
+  private createRedisClient(): Redis {
+    const client = new Redis(config.redis.url, {
       maxRetriesPerRequest: 3,
       retryStrategy: (times) => {
         if (times > 3) {
@@ -30,20 +34,49 @@ class SessionManager {
       lazyConnect: true,
     });
 
-    this.redis.on("connect", () => {
+    client.on("connect", () => {
       this.isConnected = true;
       Logger.log("Redis connected");
     });
 
-    this.redis.on("error", (err) => {
+    client.on("error", (err) => {
       const errorMessage = err instanceof Error ? err.message : String(err);
       Logger.error(`Redis error: ${errorMessage}`, err instanceof Error ? err : null);
     });
 
-    this.redis.on("close", () => {
+    client.on("close", () => {
       this.isConnected = false;
       Logger.warn("Redis connection closed");
     });
+
+    client.on("end", () => {
+      this.isConnected = false;
+      Logger.warn("Redis connection ended");
+    });
+
+    return client;
+  }
+
+  private async ensureConnected(): Promise<void> {
+    const status = this.redis.status;
+
+    if (status === "ready" || status === "connect") {
+      this.isConnected = true;
+      return;
+    }
+
+    if (status === "connecting" || status === "reconnecting") {
+      await this.redis.ping();
+      this.isConnected = true;
+      return;
+    }
+
+    if (status === "end") {
+      Logger.warn("Redis client is closed, creating a new connection");
+      this.redis = this.createRedisClient();
+    }
+
+    await this.connect();
   }
 
   async connect(): Promise<void> {
@@ -73,9 +106,7 @@ class SessionManager {
    */
   async ping(): Promise<boolean> {
     try {
-      if (!this.isConnected) {
-        await this.connect();
-      }
+      await this.ensureConnected();
       await this.redis.ping();
       return true;
     } catch (error) {
@@ -101,6 +132,7 @@ class SessionManager {
   }
 
   async getSession(chatId: number): Promise<ConversationSession | null> {
+    await this.ensureConnected();
     const key = this.sessionKey(chatId);
     const data = await this.redis.get(key);
 
@@ -135,6 +167,7 @@ class SessionManager {
   }
 
   async saveSession(session: ConversationSession): Promise<void> {
+    await this.ensureConnected();
     session.updatedAt = Date.now();
     session.expiresAt = Date.now() + SESSION_TTL * 1000;
 
@@ -191,6 +224,7 @@ class SessionManager {
   }
 
   async deleteSession(chatId: number): Promise<void> {
+    await this.ensureConnected();
     const key = this.sessionKey(chatId);
     await this.redis.del(key);
     Logger.log(`Session deleted for chat ${chatId}`);
@@ -200,6 +234,7 @@ class SessionManager {
     chatId: number,
     transaction: TransactionResult
   ): Promise<void> {
+    await this.ensureConnected();
     const key = this.lastConfirmedKey(chatId);
     const ttl = 24 * 60 * 60; // 24 hours
     await this.redis.setex(
@@ -215,26 +250,30 @@ class SessionManager {
   async getLastConfirmed(
     chatId: number
   ): Promise<{ tipo: string; datos: TransactionResult["datos"] } | null> {
+    await this.ensureConnected();
     const key = this.lastConfirmedKey(chatId);
     const data = await this.redis.get(key);
     if (!data) {
       return null;
     }
-    return JSON.parse(data);
+    return JSON.parse(data) as { tipo: string; datos: TransactionResult["datos"] };
   }
 
   async clearLastConfirmed(chatId: number): Promise<void> {
+    await this.ensureConnected();
     const key = this.lastConfirmedKey(chatId);
     await this.redis.del(key);
   }
 
   async acquireLock(chatId: number): Promise<boolean> {
+    await this.ensureConnected();
     const key = this.lockKey(chatId);
     const result = await this.redis.set(key, "1", "EX", LOCK_TTL, "NX");
     return result === "OK";
   }
 
   async releaseLock(chatId: number): Promise<void> {
+    await this.ensureConnected();
     const key = this.lockKey(chatId);
     await this.redis.del(key);
   }

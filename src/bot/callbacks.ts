@@ -69,38 +69,31 @@ export class CallbackHandlers {
       } else if (storedData.tipo === "TRANSFERENCIA") {
         await this.sheetsClient.writeTransferencia(storedData.datos);
       }
-
-      // Delete pending operation
-      pendingOperations.deleteOperation(operationId);
-
-      // Save context (legacy)
-      contextManager.setContext(chatId, {
-        tipo: storedData.tipo,
-        datos: storedData.datos,
-      });
-
-      // Save to session manager and delete session (explicit termination)
-      await sessionManager.saveLastConfirmed(chatId, storedData);
-      await sessionManager.deleteSession(chatId);
-
-      // Send confirmation message
-      const resumen = this.generateResumen(storedData);
-      await this.telegramClient.editMessage(
-        chatId,
-        messageId,
-        "✅ *¡Anotado perfectamente!*\n\n" + resumen
-      );
-      await this.telegramClient.answerCallbackQuery(callbackId, "✓ Guardado");
     } catch (error) {
       Logger.error("ERROR writing to sheet from callback", error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      await this.telegramClient.editMessage(
-        chatId,
-        messageId,
-        "❌ *Error al guardar*\n\n" + errorMessage + "\n\nRevisá los logs para más detalles."
-      );
-      await this.telegramClient.answerCallbackQuery(callbackId, "Error: " + errorMessage);
+      await this.sendSaveError(chatId, messageId, callbackId, error);
+      return;
     }
+
+    // These are useful for follow-up UX, but the transaction is already saved.
+    pendingOperations.deleteOperation(operationId);
+
+    contextManager.setContext(chatId, {
+      tipo: storedData.tipo,
+      datos: storedData.datos,
+    });
+
+    try {
+      await sessionManager.saveLastConfirmed(chatId, storedData);
+      await sessionManager.deleteSession(chatId);
+    } catch (error) {
+      Logger.warn(
+        `Transaction was saved but session cleanup failed for chat ${chatId}: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+
+    const resumen = this.generateResumen(storedData);
+    await this.sendSaveSuccess(chatId, messageId, callbackId, resumen);
   }
 
   private async handleCancel(
@@ -216,5 +209,58 @@ export class CallbackHandlers {
       return `🔄 ${d.origen} → ${d.destino}`;
     }
   }
-}
 
+  private async sendSaveSuccess(
+    chatId: number,
+    messageId: number,
+    callbackId: string,
+    resumen: string
+  ): Promise<void> {
+    const text = "✅ *¡Anotado perfectamente!*\n\n" + resumen;
+
+    try {
+      await this.telegramClient.editMessage(chatId, messageId, text);
+    } catch {
+      Logger.warn(
+        `Could not edit confirmation message for chat ${chatId}, sending a new message instead`
+      );
+      await this.telegramClient.sendMessage(chatId, text);
+    }
+
+    try {
+      await this.telegramClient.answerCallbackQuery(callbackId, "✓ Guardado");
+    } catch (error) {
+      Logger.warn(
+        `Could not answer callback query after successful save: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  private async sendSaveError(
+    chatId: number,
+    messageId: number,
+    callbackId: string,
+    error: unknown
+  ): Promise<void> {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const text =
+      "❌ *Error al guardar*\n\n" + errorMessage + "\n\nRevisá los logs para más detalles.";
+
+    try {
+      await this.telegramClient.editMessage(chatId, messageId, text);
+    } catch {
+      Logger.warn(
+        `Could not edit error message for chat ${chatId}, sending a new message instead`
+      );
+      await this.telegramClient.sendMessage(chatId, text);
+    }
+
+    try {
+      await this.telegramClient.answerCallbackQuery(callbackId, "Error: " + errorMessage);
+    } catch (callbackError) {
+      Logger.warn(
+        `Could not answer callback query after save error: ${callbackError instanceof Error ? callbackError.message : String(callbackError)}`
+      );
+    }
+  }
+}
