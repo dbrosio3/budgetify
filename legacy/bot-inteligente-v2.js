@@ -69,7 +69,7 @@ function doPost(e) {
         
       } catch (imgError) {
         actualizarMensaje(chatId, loadingMessageId, 
-          `Error en procesamiento de imagen:\n${imgError.message}\n\nStack: ${imgError.stack}`);
+          `❌ Error en procesamiento de imagen:\n${imgError.message}\n\nStack: ${imgError.stack}`);
         Logger.log("Error detallado: " + JSON.stringify(imgError));
         return;
       }
@@ -79,7 +79,7 @@ function doPost(e) {
       result = procesarConIA(message.text);
       
     } else {
-      sendTelegramMsg(chatId, "Solo puedo procesar texto o imágenes de comprobantes.");
+      sendTelegramMsg(chatId, "❌ Solo puedo procesar texto o imágenes de comprobantes.");
       return;
     }
     
@@ -92,7 +92,7 @@ function doPost(e) {
     
   } catch (err) {
     Logger.log("Error completo: " + err.stack);
-    sendTelegramMsg(chatId, "Error general: " + err.message + "\n\nStack: " + err.stack);
+    sendTelegramMsg(chatId, "❌ Error general: " + err.message + "\n\nStack: " + err.stack);
   }
 }
 
