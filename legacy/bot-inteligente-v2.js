@@ -69,7 +69,7 @@ function doPost(e) {
         
       } catch (imgError) {
         actualizarMensaje(chatId, loadingMessageId, 
-          `Error en procesamiento de imagen:\n${imgError.message}\n\nStack: ${imgError.stack}`);
+          `❌ Error en procesamiento de imagen:\n${imgError.message}\n\nStack: ${imgError.stack}`);
         Logger.log("Error detallado: " + JSON.stringify(imgError));
         return;
       }
